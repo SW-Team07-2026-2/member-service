@@ -1,0 +1,2 @@
+# 운영 값은 전부 ConfigMap(env) · /etc/secrets 파일로 들어옵니다 — DB_HOST · REDIS_AUTH_HOST · KAFKA_SERVERS · JWT_ACTIVE_KID
+logging.level.root: INFO

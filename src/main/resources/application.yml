@@ -1,0 +1,96 @@
+spring:
+  application.name: member
+  config.import: optional:configtree:/etc/secrets/
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:5432/indie_db?currentSchema=member&ApplicationName=member
+    username: member_svc
+    password: ${db.password}                  # ← configtree 파일
+    hikari:
+      maximum-pool-size: 5                    # ★ DB 쪽 CONNECTION LIMIT 15 / replica 2
+      minimum-idle: 2
+      connection-timeout: 3000
+      max-lifetime: 1500000                   # 25분 — RDS 쪽보다 짧게
+      leak-detection-threshold: 20000
+
+  jpa:
+    open-in-view: false                       # ★ 커넥션 점유 방지
+    hibernate.ddl-auto: validate              # 🔴 none/update 아님 — Flyway 와 불일치를 잡는다
+    properties:
+      hibernate:
+        default_schema: member
+        jdbc.batch_size: 50
+        order_inserts: true
+        query.in_clause_parameter_padding: true
+
+  flyway:
+    enabled: true
+    schemas: member
+    default-schema: member
+    baseline-on-migrate: false                # 🔴 true 는 기존 테이블을 조용히 건너뜁니다
+    validate-on-migrate: true
+
+  kafka:
+    bootstrap-servers: ${KAFKA_SERVERS}
+    consumer:
+      group-id: member-service                # ★ replica 2 가 같은 그룹 → 파티션 분배
+      auto-offset-reset: earliest
+      enable-auto-commit: false               # ★ 수동 커밋
+      max-poll-records: 50
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      ack-mode: MANUAL
+      concurrency: 1
+      missing-topics-fatal: false             # 🔴 Kafka 장애가 기동을 막지 않게
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 1
+        max.block.ms: 3000                    # Kafka 장애 시 릴레이 스레드가 60초씩 묶이지 않게
+
+  data.redis:
+    host: ${REDIS_AUTH_HOST}
+    port: 6379
+    timeout: 300ms
+
+server:
+  port: 8081
+  shutdown: graceful
+  tomcat.threads.max: 50                      # 384Mi 에서 200 스레드는 과합니다
+
+management:
+  server.port: 8091
+  endpoints.web.exposure.include: health,info,prometheus
+  endpoint.health:
+    probes.enabled: true
+    group:
+      readiness.include: db                   # ★ DB 는 포함 (§15-1)
+      liveness.include: ping
+
+springdoc:
+  api-docs.enabled: false                     # 운영 노출 안 함 — local 에서만 켭니다
+  swagger-ui.enabled: false
+
+app:
+  token:
+    at-ttl-seconds: 1800
+    rt-ttl-seconds: 1209600
+    issuer: indie-member
+    active-kid: ${JWT_ACTIVE_KID}             # 키 롤링 시 바꾸는 값
+    previous-kid: ${JWT_PREVIOUS_KID:}        # 롤링 중에만 — JWKS 에 구 공개키를 함께 응답
+  internal:
+    expected-audience: member
+    allowed-issuers: [gateway]
+    clock-skew-seconds: 30
+  feed:
+    page-size: 20
+    max-page-size: 50
+  outbox:
+    relay-interval-ms: 1000
+    batch-size: 100
+  signup:
+    ttl-seconds: 1800                         # 사인업 토큰 · 가입 대기 값 수명 — 밴드 고르기에 쓰는 시간 (Gateway app.cookie.signup-max-age 와 같게)

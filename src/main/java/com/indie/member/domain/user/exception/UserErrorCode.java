@@ -1,0 +1,28 @@
+package com.indie.member.domain.user.exception;
+
+import com.indie.member.global.common.exception.BaseErrorCode;
+import org.springframework.http.HttpStatus;
+
+/** 회원 에러 코드 — code 는 enum 이름 그대로 응답에 나갑니다 */
+public enum UserErrorCode implements BaseErrorCode {
+
+    ACCOUNT_WITHDRAWN(HttpStatus.CONFLICT, "탈퇴한 계정입니다"),
+    INVALID_NICKNAME(HttpStatus.BAD_REQUEST, "닉네임은 공백 없이 2~10자입니다");
+
+    private final HttpStatus status;
+    private final String message;
+
+    UserErrorCode(HttpStatus status, String message) {
+        this.status = status;
+        this.message = message;
+    }
+
+    @Override
+    public HttpStatus getStatus() { return status; }
+
+    @Override
+    public String getCode() { return name(); }
+
+    @Override
+    public String getMessage() { return message; }
+}

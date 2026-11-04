@@ -1,0 +1,18 @@
+spring:
+  # 로컬 시크릿도 운영과 같은 방식 — ./local-secrets/ 의 파일 이름이 프로퍼티 키
+  config.import: optional:configtree:./local-secrets/
+  # 🔴 로컬 DB 도 member_svc 유저로 붙습니다 (postgres 수퍼유저면 스키마 경계 위반이 로컬에서 통과합니다)
+  datasource.url: jdbc:postgresql://localhost:5432/indie_db?currentSchema=member&ApplicationName=member
+  kafka.bootstrap-servers: localhost:9092
+  data.redis.host: localhost                  # 인증용 Redis (Gateway 와 같은 인스턴스)
+
+springdoc:
+  api-docs.enabled: true
+  swagger-ui.enabled: true                    # http://localhost:8081/swagger-ui.html
+
+app:
+  token:
+    active-kid: local-key1
+
+logging:
+  pattern.console: "%d{HH:mm:ss.SSS} %-5level [%X{correlationId:-}] %logger{36} - %msg%n"

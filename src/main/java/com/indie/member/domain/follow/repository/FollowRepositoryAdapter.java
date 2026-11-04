@@ -3,23 +3,25 @@ package com.indie.member.domain.follow.repository;
 import com.indie.member.domain.follow.entity.FollowEntity;
 import com.indie.member.domain.follow.entity.FollowItem;
 import com.indie.member.global.common.util.Cursor;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import com.indie.member.global.common.util.CursorPredicates;
+import com.querydsl.core.types.Projections;
+import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.springframework.stereotype.Repository;
 
-import java.time.OffsetDateTime;
 import java.util.List;
 
-/** FollowRepository 구현 — 쓰기는 Spring Data(네이티브 INSERT ON CONFLICT), 커서 목록은 JDBC */
+import static com.indie.member.domain.follow.entity.QFollowEntity.followEntity;
+
+/** FollowRepository 구현 — 쓰기는 Spring Data(네이티브 INSERT ON CONFLICT), 커서 목록은 QueryDSL */
 @Repository
 public class FollowRepositoryAdapter implements FollowRepository {
 
     private final FollowJpaRepository jpa;
-    private final NamedParameterJdbcTemplate jdbc;
+    private final JPAQueryFactory query;
 
-    public FollowRepositoryAdapter(FollowJpaRepository jpa, NamedParameterJdbcTemplate jdbc) {
+    public FollowRepositoryAdapter(FollowJpaRepository jpa, JPAQueryFactory query) {
         this.jpa = jpa;
-        this.jdbc = jdbc;
+        this.query = query;
     }
 
     @Override
@@ -39,24 +41,17 @@ public class FollowRepositoryAdapter implements FollowRepository {
 
     @Override
     public long countByUserId(long userId) {
-        return jdbc.queryForObject("SELECT count(*) FROM follow WHERE user_id = :userId",
-                new MapSqlParameterSource("userId", userId), Long.class);
+        return jpa.countByIdUserId(userId);
     }
 
     @Override
     public List<FollowItem> findPage(long userId, Cursor cursor, int limit) {
-        MapSqlParameterSource params = new MapSqlParameterSource("userId", userId).addValue("limit", limit);
-        String cursorCondition = "";
-        if (cursor != null) {
-            cursorCondition = "AND (followed_at, artist_id) < (:cursorAt, :cursorId)";
-            params.addValue("cursorAt", cursor.at()).addValue("cursorId", cursor.id());
-        }
-        return jdbc.query("""
-                SELECT artist_id, followed_at FROM follow
-                WHERE user_id = :userId %s
-                ORDER BY followed_at DESC, artist_id DESC
-                LIMIT :limit
-                """.formatted(cursorCondition), params,
-                (rs, i) -> new FollowItem(rs.getLong("artist_id"), rs.getObject("followed_at", OffsetDateTime.class)));
+        return query.select(Projections.constructor(FollowItem.class, followEntity.id.artistId, followEntity.followedAt))
+                .from(followEntity)
+                .where(followEntity.id.userId.eq(userId),
+                        CursorPredicates.before(followEntity.followedAt, followEntity.id.artistId, cursor))
+                .orderBy(followEntity.followedAt.desc(), followEntity.id.artistId.desc())
+                .limit(limit)
+                .fetch();
     }
 }

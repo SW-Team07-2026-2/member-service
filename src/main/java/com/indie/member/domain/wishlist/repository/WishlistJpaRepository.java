@@ -8,6 +8,8 @@ import org.springframework.data.repository.query.Param;
 
 public interface WishlistJpaRepository extends JpaRepository<WishlistEntity, WishlistEntity.Id> {
 
+    long countByIdUserId(Long userId);
+
     @Modifying
     @Query(value = "INSERT INTO wishlist (user_id, product_id) VALUES (:userId, :productId) ON CONFLICT DO NOTHING",
             nativeQuery = true)

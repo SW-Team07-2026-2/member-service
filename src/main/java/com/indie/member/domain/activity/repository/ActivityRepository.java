@@ -2,7 +2,7 @@ package com.indie.member.domain.activity.repository;
 
 import com.indie.member.domain.activity.entity.NewActivity;
 
-/** activity 저장소 포트 — 구현은 JdbcActivityRepository */
+/** activity 저장소 포트 — 구현은 ActivityRepositoryAdapter */
 public interface ActivityRepository {
 
     /**

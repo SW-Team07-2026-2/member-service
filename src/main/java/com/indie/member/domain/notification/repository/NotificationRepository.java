@@ -5,7 +5,7 @@ import com.indie.member.global.common.util.Cursor;
 
 import java.util.List;
 
-/** 알림 조회 · 읽음 기준 포트 — 구현은 JdbcNotificationRepository */
+/** 알림 조회 · 읽음 기준 포트 — 구현은 NotificationRepositoryAdapter (QueryDSL · 읽음 upsert 는 네이티브) */
 public interface NotificationRepository {
 
     /** 피드(아티스트 팬아웃) + 본인 전용(target_user_id) · (occurred_at, id) 내림차순 · read 플래그 포함 */

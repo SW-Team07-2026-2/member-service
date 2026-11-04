@@ -3,24 +3,25 @@ package com.indie.member.domain.collection.repository;
 import com.indie.member.domain.collection.entity.CollectionEntity;
 import com.indie.member.domain.collection.entity.CollectionItem;
 import com.indie.member.global.common.util.Cursor;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
-/** CollectionRepository 구현 — 쓰기 · 단건은 Spring Data, 커서 목록은 JDBC */
+import static com.indie.member.domain.collection.entity.QCollectionEntity.collectionEntity;
+
+/** CollectionRepository 구현 — 쓰기 · 단건은 Spring Data, 커서 목록은 QueryDSL */
 @Repository
 public class CollectionRepositoryAdapter implements CollectionRepository {
 
     private final CollectionJpaRepository jpa;
-    private final NamedParameterJdbcTemplate jdbc;
+    private final JPAQueryFactory query;
 
-    public CollectionRepositoryAdapter(CollectionJpaRepository jpa, NamedParameterJdbcTemplate jdbc) {
+    public CollectionRepositoryAdapter(CollectionJpaRepository jpa, JPAQueryFactory query) {
         this.jpa = jpa;
-        this.jdbc = jdbc;
+        this.query = query;
     }
 
     @Override
@@ -45,19 +46,15 @@ public class CollectionRepositoryAdapter implements CollectionRepository {
 
     @Override
     public List<CollectionItem> findPage(long userId, Cursor cursor, int limit) {
-        MapSqlParameterSource params = new MapSqlParameterSource("userId", userId).addValue("limit", limit);
-        String cursorCondition = "";
-        if (cursor != null) {
-            cursorCondition = "AND id < :cursorId";
-            params.addValue("cursorId", cursor.id());
-        }
-        return jdbc.query("""
-                SELECT id, album_id, source, acquired_at FROM collection
-                WHERE user_id = :userId %s
-                ORDER BY id DESC
-                LIMIT :limit
-                """.formatted(cursorCondition), params,
-                (rs, i) -> new CollectionItem(rs.getLong("id"), rs.getLong("album_id"), rs.getString("source"),
-                        rs.getObject("acquired_at", LocalDate.class)));
+        return query.select(collectionEntity.id, collectionEntity.albumId, collectionEntity.source, collectionEntity.acquiredAt)
+                .from(collectionEntity)
+                .where(collectionEntity.userId.eq(userId),
+                        cursor == null ? null : collectionEntity.id.lt(cursor.id()))
+                .orderBy(collectionEntity.id.desc())
+                .limit(limit)
+                .fetch().stream()
+                .map(t -> new CollectionItem(t.get(collectionEntity.id), t.get(collectionEntity.albumId),
+                        t.get(collectionEntity.source).name(), t.get(collectionEntity.acquiredAt)))
+                .toList();
     }
 }

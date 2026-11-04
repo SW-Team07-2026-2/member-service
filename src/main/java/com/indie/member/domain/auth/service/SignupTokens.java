@@ -1,6 +1,8 @@
 package com.indie.member.domain.auth.service;
 
+import com.indie.member.domain.auth.exception.AuthErrorCode;
 import com.indie.member.domain.user.entity.UserEntity;
+import com.indie.member.global.common.exception.GeneralException;
 import com.indie.member.global.config.MemberProperties;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JOSEObjectType;
@@ -10,6 +12,8 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.crypto.MACVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -19,7 +23,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Date;
-import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -31,6 +34,7 @@ import java.util.UUID;
 public class SignupTokens {
 
     static final String TYPE = "SIGNUP";
+    private static final Logger log = LoggerFactory.getLogger(SignupTokens.class);
 
     private final MACSigner signer;
     private final MACVerifier verifier;
@@ -66,26 +70,36 @@ public class SignupTokens {
         return new Issued(jwt.serialize(), jti);
     }
 
-    /** 서명 · 만료 · type 이 맞으면 클레임 — 아니면 빈 값 (이유는 구분하지 않습니다 · 응답은 모두 SIGNUP_EXPIRED) */
-    public Optional<Claims> verify(String token) {
+    /**
+     * 서명 · type · 클레임이 맞고 만료 전이면 클레임.
+     * 30분이 지났으면 401 SIGNUP_EXPIRED, 위조 · 형식 오류면 401 SIGNUP_INVALID (어느 검사에서 걸렸는지는 로그로만)
+     */
+    public Claims verify(String token) {
         try {
             SignedJWT jwt = SignedJWT.parse(token);
-            if (!JWSAlgorithm.HS256.equals(jwt.getHeader().getAlgorithm()) || !jwt.verify(verifier)) {
-                return Optional.empty();
-            }
+            if (!JWSAlgorithm.HS256.equals(jwt.getHeader().getAlgorithm())) throw rejected("alg");
+            if (!jwt.verify(verifier)) throw rejected("signature");
             JWTClaimsSet c = jwt.getJWTClaimsSet();
+            if (!TYPE.equals(c.getStringClaim("type"))) throw rejected("type");
             Date exp = c.getExpirationTime();
+            if (exp == null) throw rejected("exp");
+            if (!exp.toInstant().isAfter(clock.instant())) throw new GeneralException(AuthErrorCode.SIGNUP_EXPIRED);
             String provider = c.getStringClaim("provider");
-            String providerUid = c.getStringClaim("providerUid");
-            if (!TYPE.equals(c.getStringClaim("type")) || exp == null || !exp.toInstant().isAfter(clock.instant())
-                    || provider == null || providerUid == null || c.getJWTID() == null
-                    || Arrays.stream(UserEntity.Provider.values()).noneMatch(p -> p.name().equals(provider))) {
-                return Optional.empty();
+            if (provider == null || Arrays.stream(UserEntity.Provider.values()).noneMatch(p -> p.name().equals(provider))) {
+                throw rejected("provider");
             }
-            return Optional.of(new Claims(UserEntity.Provider.valueOf(provider), providerUid, c.getJWTID()));
+            String providerUid = c.getStringClaim("providerUid");
+            if (providerUid == null) throw rejected("provider_uid");
+            if (c.getJWTID() == null) throw rejected("jti");
+            return new Claims(UserEntity.Provider.valueOf(provider), providerUid, c.getJWTID());
         } catch (ParseException | JOSEException e) {
-            return Optional.empty();
+            throw rejected("parse");
         }
+    }
+
+    private static GeneralException rejected(String reason) {
+        log.warn("signup_token_rejected reason={}", reason);
+        return new GeneralException(AuthErrorCode.SIGNUP_INVALID);
     }
 
     public long ttlSeconds() {

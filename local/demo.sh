@@ -156,10 +156,11 @@ step "3. 앱 로드 — /api/auth/me (닉네임은 AT 가 아니라 Member 내�
 r=$(call "$JAR" GET /api/auth/me); check "GET /api/auth/me" 200 "${r%%$'\t'*}" "${r#*$'\t'}"
 
 step "4. 닉네임 — 2~10자 · 공백 금지 · 가입 기본값은 소셜 닉네임(이름)"
-for case in "a|1자" "가나다라마바사아자차카|11자" "인디 러버|공백"; do
-  BODY="{\"nickname\":\"${case%%|*}\"}"
+for case in "a|1자|NICKNAME_TOO_SHORT" "가나다라마바사아자차카|11자|NICKNAME_TOO_LONG" "인디 러버|공백|INVALID_NICKNAME"; do
+  IFS='|' read -r NICK LABEL CODE <<< "$case"
+  BODY="{\"nickname\":\"$NICK\"}"
   r=$(call "$JAR" PATCH /api/members/me -H "X-XSRF-TOKEN: $X" -H "$J" -d "$BODY")
-  check "[M-19] 닉네임 ${case#*|} \"${case%%|*}\" → 400" "400 INVALID_NICKNAME" "${r%%$'\t'*} $(field "${r#*$'\t'}" code)"
+  check "[M-19] 닉네임 $LABEL \"$NICK\" → 400" "400 $CODE" "${r%%$'\t'*} $(field "${r#*$'\t'}" code)"
 done
 NICK2="인디러버$((RANDOM % 100))"; BODY="{\"nickname\":\"$NICK2\"}"
 r=$(call "$JAR" PATCH /api/members/me -H "X-XSRF-TOKEN: $X" -H "$J" -d "$BODY"); check "닉네임 \"$NICK2\" → 200" 200 "${r%%$'\t'*}" "${r#*$'\t'}"

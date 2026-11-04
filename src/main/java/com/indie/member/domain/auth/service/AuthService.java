@@ -63,8 +63,7 @@ public class AuthService {
 
     /** 가입 완료 — 토큰 검증 → 가입 대기 값을 꺼내며 지움(1회용) → 회원 · 팔로우 · 동의 이력 한 트랜잭션 → AT · RT */
     public IssueResponse signup(String signupToken, List<Long> artistIds) {
-        SignupTokens.Claims claims = signupTokens.verify(signupToken)
-                .orElseThrow(() -> new GeneralException(AuthErrorCode.SIGNUP_EXPIRED));
+        SignupTokens.Claims claims = signupTokens.verify(signupToken);
         PendingSignup pending = signupStore.consume(claims.provider(), claims.providerUid(), claims.jti())
                 .orElseThrow(() -> new GeneralException(AuthErrorCode.SIGNUP_EXPIRED));
         UserService.LoginResult result = userService.register(claims.provider(), claims.providerUid(), pending.email(),

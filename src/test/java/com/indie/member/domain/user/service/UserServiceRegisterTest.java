@@ -2,12 +2,13 @@ package com.indie.member.domain.user.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.indie.member.domain.agreement.entity.Agreement;
-import com.indie.member.domain.agreement.repository.JdbcAgreementRepository;
+import com.indie.member.domain.agreement.repository.AgreementRepositoryAdapter;
 import com.indie.member.domain.collection.repository.CollectionRepositoryAdapter;
 import com.indie.member.domain.follow.repository.FollowRepositoryAdapter;
 import com.indie.member.domain.follow.service.FollowService;
 import com.indie.member.domain.user.entity.UserEntity;
 import com.indie.member.domain.wishlist.repository.WishlistRepositoryAdapter;
+import com.indie.member.global.config.QuerydslConfig;
 import com.indie.member.global.outbox.OutboxAppender;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,7 +43,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @Import({UserService.class, FollowService.class, FollowRepositoryAdapter.class, WishlistRepositoryAdapter.class,
-        CollectionRepositoryAdapter.class, JdbcAgreementRepository.class, OutboxAppender.class,
+        CollectionRepositoryAdapter.class, AgreementRepositoryAdapter.class, OutboxAppender.class, QuerydslConfig.class,
         UserServiceRegisterTest.Beans.class})
 class UserServiceRegisterTest {
 

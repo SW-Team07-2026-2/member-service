@@ -14,6 +14,10 @@ repositories { mavenCentral() }
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    // 64A — QueryDSL (OpenFeign 포크). 6.x = Hibernate 6 · JPA 3.1 라인 (7.x 는 Hibernate 7 · Boot 4 용)
+    implementation 'io.github.openfeign.querydsl:querydsl-jpa:6.12'
+    annotationProcessor 'io.github.openfeign.querydsl:querydsl-apt:6.12:jpa'
+    annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.springframework.kafka:spring-kafka'

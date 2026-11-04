@@ -10,14 +10,25 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class NicknamePolicyTest {
 
-    /** DoD 19 — 1자 · 11자 · 공백 → 400 INVALID_NICKNAME */
+    /** DoD 19 — 공백 · 제어문자 · 금칙어 → 400 INVALID_NICKNAME */
     @ParameterizedTest
-    @ValueSource(strings = {"a", "가나다라마바사아자차카", "인디 러버", "탭\t문자", "운영자123"})
+    @ValueSource(strings = {"인디 러버", "탭\t문자", "운영자123"})
     void invalidNicknamesAreRejected(String nickname) {
+        assertRejected(nickname, "INVALID_NICKNAME");
+    }
+
+    /** DoD 19 — 1자 · 11자는 길이 코드가 따로 */
+    @Test
+    void lengthViolationsHaveOwnCodes() {
+        assertRejected("a", "NICKNAME_TOO_SHORT");
+        assertRejected("가나다라마바사아자차카", "NICKNAME_TOO_LONG");
+    }
+
+    private static void assertRejected(String nickname, String code) {
         assertThatThrownBy(() -> NicknamePolicy.validate(nickname))
                 .isInstanceOfSatisfying(GeneralException.class, e -> {
                     assertThat(e.getErrorCode().getStatus().value()).isEqualTo(400);
-                    assertThat(e.getErrorCode().getCode()).isEqualTo("INVALID_NICKNAME");
+                    assertThat(e.getErrorCode().getCode()).isEqualTo(code);
                 });
     }
 

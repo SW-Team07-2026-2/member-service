@@ -8,7 +8,8 @@ public enum AuthErrorCode implements BaseErrorCode {
 
     REFRESH_INVALID(HttpStatus.UNAUTHORIZED, "다시 로그인해주세요"),
     REFRESH_REUSED(HttpStatus.UNAUTHORIZED, "다시 로그인해주세요"),
-    SIGNUP_EXPIRED(HttpStatus.UNAUTHORIZED, "가입 시간이 지났어요. 다시 로그인해주세요");
+    SIGNUP_EXPIRED(HttpStatus.UNAUTHORIZED, "가입 시간이 지났어요. 다시 로그인해주세요"),
+    SIGNUP_INVALID(HttpStatus.UNAUTHORIZED, "가입 정보를 확인할 수 없어요. 다시 로그인해주세요");   // 위조 · 형식 오류 (사유는 로그)
 
     private final HttpStatus status;
     private final String message;

@@ -32,6 +32,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -189,6 +191,18 @@ class MemberQueryRepositoriesTest {
         assertThat(activities.appendIfAbsent(personal)).isFalse();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM activity WHERE event_id = ? AND artist_id IS NULL AND ref_id IS NULL",
                 Integer.class, eventId)).isEqualTo(1);
+    }
+
+    /** Kafka 컨슈머 경로 — 트랜잭션 없이 불러도 저장됩니다 (JDBC 때와 같은 계약) */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void activityAppendWorksWithoutCallerTransaction() {
+        UUID eventId = UUID.randomUUID();
+        NewActivity fanout = new NewActivity(eventId, 10L, null, ActivityType.values()[0], 5L, "앨범", "https://x/y.png", T);
+
+        assertThat(activities.appendIfAbsent(fanout)).isTrue();
+        assertThat(activities.appendIfAbsent(fanout)).isFalse();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM activity WHERE event_id = ?", Integer.class, eventId)).isEqualTo(1);
     }
 
     @Test

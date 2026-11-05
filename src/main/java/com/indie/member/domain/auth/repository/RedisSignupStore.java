@@ -13,7 +13,7 @@ import java.util.Optional;
 
 /**
  * <pre>
- * auth:signup:{provider}:{providerUid} → {"jti","email","nickname","profileImageUrl","agreements"}  TTL = 사인업 토큰 수명
+ * auth:signup:{provider}:{providerUid} → {"jti","email","nickname","profileImageUrl"}  TTL = 사인업 토큰 수명
  * </pre>
  * 꺼내기는 Lua 하나로 (resources/redis/signup-consume.lua) — "가입하기" 를 두 번 눌러도 한 번만 성공합니다.
  * 값 JSON 은 signupRedis 템플릿의 직렬화기가 맡습니다 (62B).

@@ -4,8 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.indie.member.domain.activity.entity.ActivityType;
 import com.indie.member.domain.activity.entity.NewActivity;
 import com.indie.member.domain.activity.repository.ActivityRepositoryAdapter;
-import com.indie.member.domain.agreement.entity.Agreement;
-import com.indie.member.domain.agreement.repository.AgreementRepositoryAdapter;
 import com.indie.member.domain.collection.entity.CollectionEntity;
 import com.indie.member.domain.collection.entity.CollectionItem;
 import com.indie.member.domain.collection.repository.CollectionRepositoryAdapter;
@@ -56,7 +54,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({QuerydslConfig.class, FollowRepositoryAdapter.class, WishlistRepositoryAdapter.class,
         CollectionRepositoryAdapter.class, FeedRepositoryAdapter.class, NotificationRepositoryAdapter.class,
-        ActivityRepositoryAdapter.class, AgreementRepositoryAdapter.class, OutboxAppender.class,
+        ActivityRepositoryAdapter.class, OutboxAppender.class,
         MemberQueryRepositoriesTest.Beans.class})
 class MemberQueryRepositoriesTest {
 
@@ -86,7 +84,6 @@ class MemberQueryRepositoriesTest {
     @Autowired FeedRepositoryAdapter feed;
     @Autowired NotificationRepositoryAdapter notifications;
     @Autowired ActivityRepositoryAdapter activities;
-    @Autowired AgreementRepositoryAdapter agreements;
     @Autowired OutboxAppender outbox;
 
     long userId;
@@ -203,18 +200,6 @@ class MemberQueryRepositoriesTest {
         assertThat(activities.appendIfAbsent(fanout)).isTrue();
         assertThat(activities.appendIfAbsent(fanout)).isFalse();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM activity WHERE event_id = ?", Integer.class, eventId)).isEqualTo(1);
-    }
-
-    @Test
-    void agreementsAreAppendedAsHistory() {
-        agreements.appendAll(userId, "KAKAO_SYNC", List.of(
-                new Agreement("tos", true, T), new Agreement("marketing", false, null)));
-        agreements.appendAll(userId, "KAKAO_SYNC", List.of());
-        em.flush();   // JPA 저장분을 JdbcTemplate 로 읽으려면
-
-        assertThat(jdbc.queryForList("SELECT tag, agreed, channel FROM user_agreement WHERE user_id = ? ORDER BY tag", userId))
-                .containsExactly(Map.of("tag", "marketing", "agreed", false, "channel", "KAKAO_SYNC"),
-                        Map.of("tag", "tos", "agreed", true, "channel", "KAKAO_SYNC"));
     }
 
     /** 같은 트랜잭션에 jsonb 로 저장 (@DataJpaTest 는 테스트마다 트랜잭션) */

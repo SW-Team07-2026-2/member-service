@@ -1,6 +1,5 @@
 package com.indie.member.domain.auth.service;
 
-import com.indie.member.domain.agreement.entity.Agreement;
 import com.indie.member.domain.auth.dto.response.IssueResponse;
 import com.indie.member.domain.auth.dto.response.RefreshResponse;
 import com.indie.member.domain.auth.exception.AuthErrorCode;
@@ -9,6 +8,8 @@ import com.indie.member.domain.auth.repository.RefreshTokenStore.Rotation;
 import com.indie.member.domain.auth.repository.RefreshTokenStore;
 import com.indie.member.domain.auth.repository.SignupStore;
 import com.indie.member.domain.auth.repository.SignupStore.PendingSignup;
+import com.indie.member.domain.terms.dto.request.TermsAgreement;
+import com.indie.member.domain.terms.service.TermsService;
 import com.indie.member.domain.user.entity.UserEntity;
 import com.indie.member.domain.user.service.UserService;
 import com.indie.member.global.common.exception.GeneralException;
@@ -34,15 +35,18 @@ public class AuthService {
     private final BlacklistWriter blacklistWriter;
     private final SignupTokens signupTokens;
     private final SignupStore signupStore;
+    private final TermsService termsService;
 
     public AuthService(UserService userService, TokenIssuer tokenIssuer, RefreshTokenStore refreshTokenStore,
-                       BlacklistWriter blacklistWriter, SignupTokens signupTokens, SignupStore signupStore) {
+                       BlacklistWriter blacklistWriter, SignupTokens signupTokens, SignupStore signupStore,
+                       TermsService termsService) {
         this.userService = userService;
         this.tokenIssuer = tokenIssuer;
         this.refreshTokenStore = refreshTokenStore;
         this.blacklistWriter = blacklistWriter;
         this.signupTokens = signupTokens;
         this.signupStore = signupStore;
+        this.termsService = termsService;
     }
 
     /**
@@ -50,24 +54,28 @@ public class AuthService {
      * 중간에 나가면 DB 에 아무것도 남지 않고, 가입 대기 값도 토큰 수명 뒤 사라집니다.
      */
     public IssueResponse issue(UserEntity.Provider provider, String providerUid, String email, String nickname,
-                               String profileImageUrl, List<Agreement> agreements) {
+                               String profileImageUrl) {
         Optional<UserEntity> existing = userService.findOnLogin(provider, providerUid, email, profileImageUrl);
         if (existing.isPresent()) {
             return tokens(existing.get(), false);
         }
         SignupTokens.Issued issued = signupTokens.issue(provider, providerUid);
-        signupStore.save(provider, providerUid, new PendingSignup(issued.jti(), email, nickname, profileImageUrl,
-                agreements == null ? List.of() : agreements), signupTokens.ttlSeconds());
+        signupStore.save(provider, providerUid, new PendingSignup(issued.jti(), email, nickname, profileImageUrl),
+                signupTokens.ttlSeconds());
         return IssueResponse.pendingSignup(issued.token());
     }
 
-    /** 가입 완료 — 토큰 검증 → 가입 대기 값을 꺼내며 지움(1회용) → 회원 · 팔로우 · 동의 이력 한 트랜잭션 → AT · RT */
-    public IssueResponse signup(String signupToken, List<Long> artistIds) {
+    /**
+     * 가입 완료 — 토큰 검증 → 약관 검사 → 가입 대기 값을 꺼내며 지움(1회용) → 회원 · 팔로우 · 동의 이력 한 트랜잭션 → AT · RT.
+     * 약관 검사를 꺼내기보다 먼저 합니다 — 400 · 409 를 받아도 사인업 토큰이 살아 있어 고쳐서 다시 보낼 수 있습니다
+     */
+    public IssueResponse signup(String signupToken, List<Long> artistIds, List<TermsAgreement> agreements) {
         SignupTokens.Claims claims = signupTokens.verify(signupToken);
+        List<TermsAgreement> checked = termsService.checkSignup(agreements);
         PendingSignup pending = signupStore.consume(claims.provider(), claims.providerUid(), claims.jti())
                 .orElseThrow(() -> new GeneralException(AuthErrorCode.SIGNUP_EXPIRED));
         UserService.LoginResult result = userService.register(claims.provider(), claims.providerUid(), pending.email(),
-                pending.nickname(), pending.profileImageUrl(), artistIds, pending.agreements());
+                pending.nickname(), pending.profileImageUrl(), artistIds, checked);
         return tokens(result.user(), result.newUser());
     }
 

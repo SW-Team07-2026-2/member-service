@@ -32,10 +32,11 @@ field()   { python3 -c 'import json,sys;d=json.loads(sys.argv[1]);d={**d,**d["re
 xsrf()    { awk '$6=="XSRF-TOKEN"{print $7}' "$1"; }
 cookie()  { awk -v n="$2" '$6==n{print $7}' "$1"; }
 urlenc()  { python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "$1"; }
+agree()   { curl -s "$G/api/members/terms" | python3 -c 'import json,sys;print(json.dumps([{"termsId":t["termsId"],"agreed":True} for t in json.load(sys.stdin)["result"]["items"]]))'; }   # 11/05 M24 약관 전체 동의 → G13 agreements
 login()   {   # login <쿠키파일> <닉네임> → "코드<TAB>본문" — 처음이면 OAuth 콜백처럼 사인업 토큰만 받으므로 가입(POST /api/auth/signup)까지
   local r; r=$(call "$1" GET "/dev/login?nickname=$(urlenc "$2")")
   if [[ "$(field "${r#*$'\t'}" newUser)" == True ]]; then
-    r=$(call "$1" POST /api/auth/signup -H "X-XSRF-TOKEN: $(xsrf "$1")" -H "$J" -d '{"artistIds":[]}')
+    r=$(call "$1" POST /api/auth/signup -H "X-XSRF-TOKEN: $(xsrf "$1")" -H "$J" -d "{\"artistIds\":[],\"agreements\":$(agree)}")
   fi
   printf '%s' "$r"
 }
@@ -139,6 +140,8 @@ check "처음 로그인 → 사인업 토큰만 (SIGNUP 쿠키 · AT 없음)" "T
   "$(field "${r#*$'\t'}" newUser) $(cookie "$JAR" SIGNUP | grep -c .) $(cookie "$JAR" AT | grep -c .)"
 check "가입 전 /api/members/me → 401 (아직 회원 아님)" 401 "$(code -b "$JAR" $G/api/members/me)"
 r=$(call "$JAR" POST /api/auth/signup -H "X-XSRF-TOKEN: $(xsrf "$JAR")" -H "$J" -d '{"artistIds":[]}')
+check "약관 동의 없이 가입 → 400 (사인업 토큰은 그대로)" "400 REQUIRED_AGREEMENT_MISSING" "${r%%$'\t'*} $(field "${r#*$'\t'}" code)"
+r=$(call "$JAR" POST /api/auth/signup -H "X-XSRF-TOKEN: $(xsrf "$JAR")" -H "$J" -d "{\"artistIds\":[],\"agreements\":$(agree)}")
 check "POST /api/auth/signup → 가입 · newUser=True" "200 True" "${r%%$'\t'*} $(field "${r#*$'\t'}" newUser)" "${r#*$'\t'}"
 printf '    쿠키: %s\n' "$(awk '!/^# / && NF>=7 {printf "%s ", $6}' "$JAR")"
 X=$(xsrf "$JAR"); USER_ID=$(field "${r#*$'\t'}" userId)
@@ -240,14 +243,14 @@ check "[M-3] aud: catalog 인 내부 토큰" 401 "$(code -X POST -H "$J" -H "X-I
 IT=$(itoken member)
 ST=$(curl -s -X POST -H "$J" -H "X-Internal-Token: $IT" -d "$ISSUE" $M/internal/auth/issue | python3 -c 'import json,sys;print(json.load(sys.stdin)["result"]["signupToken"])')
 check "[M-5] 처음 issue → users 행 0개 (가입은 사인업 토큰으로)" 0 "$(psql "SELECT count(*) FROM member.users WHERE provider_uid = 'dod-$S'")"
-SIGNUP="{\"signupToken\":\"$ST\",\"artistIds\":[]}"
+SIGNUP="{\"signupToken\":\"$ST\",\"artistIds\":[],\"agreements\":$(agree)}"
 for i in 1 2 3 4 5 6 7 8 9 10; do code -X POST -H "$J" -H "X-Internal-Token: $IT" -d "$SIGNUP" $M/internal/auth/signup > "$WORK/signup-$i" & done; wait
 check "[M-5] 같은 사인업 토큰으로 가입 10건 동시 → 성공 1 · users 행 1개" "1 1" \
   "$(cat "$WORK"/signup-* | grep -o 200 | wc -l | tr -d ' ') $(psql "SELECT count(*) FROM member.users WHERE provider_uid = 'dod-$S'")"
 
 check "[M-18] member_svc 로 catalog 스키마 조회 → 권한 없음" "permission denied for schema catalog" \
   "$($DC exec -T postgres psql 'postgresql://member_svc:localdev@localhost/indie_db' -tAc 'SELECT 1 FROM catalog.artist LIMIT 1' 2>&1 | grep -o 'permission denied for schema catalog' | head -1)"
-check "[M-22] Flyway V1~V7 성공" "1 2 3 4 5 6 7" "$(psql "SELECT string_agg(version, ' ' ORDER BY installed_rank) FROM member.flyway_schema_history WHERE success")"
+check "[M-22] Flyway V1~V9 성공" "1 2 3 4 5 6 7 8 9" "$(psql "SELECT string_agg(version, ' ' ORDER BY installed_rank) FROM member.flyway_schema_history WHERE success")"
 n=$(psql "SELECT count(*) FROM pg_stat_activity WHERE usename = 'member_svc'")
 check "[M-24] member_svc DB 커넥션 10 이하" true "$([[ $n -le 10 ]] && echo true || echo false)" "현재 ${n}개 (풀 5)"
 

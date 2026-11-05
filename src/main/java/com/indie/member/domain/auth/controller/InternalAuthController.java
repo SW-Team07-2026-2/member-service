@@ -35,13 +35,13 @@ public class InternalAuthController {
     @PostMapping("/issue")
     public ApiResponse<IssueResponse> issue(@Valid @RequestBody IssueRequest request) {
         return ApiResponse.onSuccess(authService.issue(request.provider(), request.providerUid(), request.email(), request.nickname(),
-                request.profileImageUrl(), request.agreements()));
+                request.profileImageUrl()));
     }
 
     /** 가입 완료 (I28) — 사인업 토큰 1회 사용 → 회원 · 팔로우 · 동의 이력 → AT · RT */
     @PostMapping("/signup")
     public ApiResponse<IssueResponse> signup(@Valid @RequestBody SignupRequest request) {
-        return ApiResponse.onSuccess(authService.signup(request.signupToken(), request.artistIds()));
+        return ApiResponse.onSuccess(authService.signup(request.signupToken(), request.artistIds(), request.agreements()));
     }
 
     /** RT 회전 — 🔴 응답의 RT 도 새 값 */

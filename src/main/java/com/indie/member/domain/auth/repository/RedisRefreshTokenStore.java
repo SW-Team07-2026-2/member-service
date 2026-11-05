@@ -1,10 +1,11 @@
 package com.indie.member.domain.auth.repository;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.indie.member.global.config.MemberProperties;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
+import org.springframework.data.redis.serializer.SerializationException;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
@@ -24,55 +25,34 @@ import java.util.Set;
  * auth:rt:user:{userId}      → SET of hash            TTL 14일   전체 폐기용
  * auth:rt:used:{sha256(rt)}  → 회전된 RT 의 원래 값    TTL 60초   재사용 탐지 창
  * </pre>
- * 회전은 Lua 스크립트 하나로 원자 처리합니다 — 탭 2개가 동시에 갱신해도 한쪽만 성공합니다.
+ * 발급 · 회전은 Lua 하나로 원자 처리합니다 (resources/redis) — 탭 2개가 동시에 갱신해도 한쪽만 성공합니다.
  */
 @Component
 public class RedisRefreshTokenStore implements RefreshTokenStore {
 
+    /** auth:rt:{hash} 의 값 — Lua(cjson)가 쓰고 Java 는 refreshTokenRedis 로 읽습니다 */
+    public record StoredToken(String userId, String issuedAt) {}
+
     private static final SecureRandom RANDOM = new SecureRandom();   // 🔴 Random · UUID 금지 — 예측 가능
     private static final long USED_MARK_TTL_SECONDS = 60;
 
-    private static final RedisScript<Long> CREATE = new DefaultRedisScript<>("""
-            redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[3])
-            redis.call('SADD', KEYS[2], ARGV[2])
-            redis.call('EXPIRE', KEYS[2], ARGV[3])
-            return 1
-            """, Long.class);
+    private static final RedisScript<Long> CREATE =
+            RedisScript.of(new ClassPathResource("redis/refresh-token-create.lua"), Long.class);
 
-    /** KEYS: rt, used · ARGV: oldHash, newHash, issuedAt, rtTtl, usedTtl → {OK|INVALID|REUSED, userId} */
+    /** 반환 {OK|INVALID|REUSED, userId} */
     @SuppressWarnings("rawtypes")
-    private static final RedisScript<List> ROTATE = new DefaultRedisScript<>("""
-            local v = redis.call('GET', KEYS[1])
-            if not v then
-              local used = redis.call('GET', KEYS[2])
-              if not used then return {'INVALID', ''} end
-              local uid = cjson.decode(used)['userId']
-              local setKey = 'auth:rt:user:' .. uid
-              for _, h in ipairs(redis.call('SMEMBERS', setKey)) do redis.call('DEL', 'auth:rt:' .. h) end
-              redis.call('DEL', setKey)
-              return {'REUSED', uid}
-            end
-            local data = cjson.decode(v)
-            local uid = data['userId']
-            redis.call('DEL', KEYS[1])
-            redis.call('SET', KEYS[2], v, 'EX', ARGV[5])
-            data['issuedAt'] = ARGV[3]
-            redis.call('SET', 'auth:rt:' .. ARGV[2], cjson.encode(data), 'EX', ARGV[4])
-            local setKey = 'auth:rt:user:' .. uid
-            redis.call('SREM', setKey, ARGV[1])
-            redis.call('SADD', setKey, ARGV[2])
-            redis.call('EXPIRE', setKey, ARGV[4])
-            return {'OK', uid}
-            """, List.class);
+    private static final RedisScript<List> ROTATE =
+            RedisScript.of(new ClassPathResource("redis/refresh-token-rotate.lua"), List.class);
 
     private final StringRedisTemplate redis;
-    private final ObjectMapper objectMapper;
+    private final RedisTemplate<String, StoredToken> refreshTokenRedis;
     private final long ttlSeconds;
     private final Clock clock;
 
-    public RedisRefreshTokenStore(StringRedisTemplate redis, ObjectMapper objectMapper, MemberProperties props, Clock clock) {
+    public RedisRefreshTokenStore(StringRedisTemplate redis, RedisTemplate<String, StoredToken> refreshTokenRedis,
+                                  MemberProperties props, Clock clock) {
         this.redis = redis;
-        this.objectMapper = objectMapper;
+        this.refreshTokenRedis = refreshTokenRedis;
         this.ttlSeconds = props.token().rtTtlSeconds();
         this.clock = clock;
     }
@@ -82,7 +62,7 @@ public class RedisRefreshTokenStore implements RefreshTokenStore {
         String rt = newToken();
         String hash = hash(rt);
         redis.execute(CREATE, List.of("auth:rt:" + hash, userSetKey(userId)),
-                value(String.valueOf(userId)), hash, String.valueOf(ttlSeconds));
+                String.valueOf(userId), String.valueOf(clock.instant().getEpochSecond()), hash, String.valueOf(ttlSeconds));
         return rt;
     }
 
@@ -102,14 +82,19 @@ public class RedisRefreshTokenStore implements RefreshTokenStore {
     @Override
     public void revoke(String refreshToken) {
         String hash = hash(refreshToken);
-        String value = redis.opsForValue().getAndDelete("auth:rt:" + hash);
-        if (value != null) {
-            try {
-                long userId = objectMapper.readTree(value).get("userId").asLong();
-                redis.opsForSet().remove(userSetKey(userId), hash);
-            } catch (Exception e) {
-                // 인덱스 SET 정리는 실패해도 RT 자체는 이미 삭제됐습니다 (TTL 로 정리됨)
-            }
+        StoredToken stored;
+        try {
+            stored = refreshTokenRedis.opsForValue().getAndDelete("auth:rt:" + hash);
+        } catch (SerializationException e) {
+            return;   // 값이 깨졌어도 GETDEL 로 RT 는 이미 지워졌습니다 (인덱스 SET 은 TTL 로 정리)
+        }
+        if (stored == null) {
+            return;
+        }
+        try {
+            redis.opsForSet().remove(userSetKey(Long.parseLong(stored.userId())), hash);
+        } catch (RuntimeException e) {
+            // 인덱스 SET 정리는 실패해도 RT 자체는 이미 삭제됐습니다 (TTL 로 정리됨)
         }
     }
 
@@ -121,10 +106,6 @@ public class RedisRefreshTokenStore implements RefreshTokenStore {
             redis.delete(hashes.stream().map(h -> "auth:rt:" + h).toList());
         }
         redis.delete(userSetKey(userId));
-    }
-
-    private String value(String userId) {
-        return "{\"userId\":\"" + userId + "\",\"issuedAt\":\"" + clock.instant().getEpochSecond() + "\"}";
     }
 
     private static String userSetKey(long userId) {

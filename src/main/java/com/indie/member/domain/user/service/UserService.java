@@ -1,10 +1,10 @@
 package com.indie.member.domain.user.service;
 
-import com.indie.member.domain.agreement.entity.Agreement;
-import com.indie.member.domain.agreement.repository.AgreementRepository;
 import com.indie.member.domain.collection.repository.CollectionRepository;
 import com.indie.member.domain.follow.repository.FollowRepository;
 import com.indie.member.domain.follow.service.FollowService;
+import com.indie.member.domain.terms.dto.request.TermsAgreement;
+import com.indie.member.domain.terms.service.TermsService;
 import com.indie.member.domain.user.entity.NicknamePolicy;
 import com.indie.member.domain.user.entity.UserEntity;
 import com.indie.member.domain.user.exception.UserErrorCode;
@@ -26,17 +26,17 @@ public class UserService {
     private final WishlistRepository wishlistRepository;
     private final CollectionRepository collectionRepository;
     private final FollowService followService;
-    private final AgreementRepository agreementRepository;
+    private final TermsService termsService;
 
     public UserService(UserRepository userRepository, FollowRepository followRepository,
                        WishlistRepository wishlistRepository, CollectionRepository collectionRepository,
-                       FollowService followService, AgreementRepository agreementRepository) {
+                       FollowService followService, TermsService termsService) {
         this.userRepository = userRepository;
         this.followRepository = followRepository;
         this.wishlistRepository = wishlistRepository;
         this.collectionRepository = collectionRepository;
         this.followService = followService;
-        this.agreementRepository = agreementRepository;
+        this.termsService = termsService;
     }
 
     /**
@@ -57,7 +57,7 @@ public class UserService {
     }
 
     /**
-     * 가입 — 회원 + 밴드 고르기에서 고른 팔로우 + 카카오 싱크 동의 이력을 한 트랜잭션에.
+     * 가입 — 회원 + 밴드 고르기에서 고른 팔로우 + 약관 동의 이력(user_terms · TermsService.checkSignup 을 거친 목록)을 한 트랜잭션에.
      * <ul>
      *   <li>이메일이 다른 계정과 겹치면 별 계정으로 만들고 email 은 비웁니다 —
      *       명세는 "별 계정" 이면서 email UNIQUE 를 걸어 두 요구가 충돌하기 때문입니다</li>
@@ -66,7 +66,7 @@ public class UserService {
      */
     @Transactional
     public LoginResult register(UserEntity.Provider provider, String providerUid, String email, String nickname,
-                                String profileImageUrl, List<Long> artistIds, List<Agreement> agreements) {
+                                String profileImageUrl, List<Long> artistIds, List<TermsAgreement> agreements) {
         String candidate = NicknamePolicy.fromProvider(nickname);
         if (userRepository.existsByNickname(candidate)) {
             candidate = NicknamePolicy.withSuffix(candidate);   // 충돌 시 숫자 suffix (중복 자체는 허용)
@@ -79,7 +79,7 @@ public class UserService {
         if (id.isPresent()) {
             long userId = id.get();
             artistIds.stream().distinct().forEach(artistId -> followService.follow(userId, artistId));
-            agreementRepository.appendAll(userId, "KAKAO_SYNC", agreements);
+            termsService.recordSignup(userId, agreements);
             return new LoginResult(userRepository.findById(userId).orElseThrow(), true);
         }
         // 동시 가입 — 다른 요청이 먼저 INSERT 했습니다

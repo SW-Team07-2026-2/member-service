@@ -17,11 +17,12 @@ public final class NicknamePolicy {
     private static final List<String> BANNED = List.of(
             "관리자", "운영자", "운영팀", "고객센터", "admin", "official", "공식", "시발", "씨발", "병신");
 
-    /** PATCH /api/members/me — 규칙 위반이면 400 INVALID_NICKNAME */
+    /** PATCH /api/members/me — 짧으면 400 NICKNAME_TOO_SHORT · 길면 NICKNAME_TOO_LONG · 그 밖의 위반은 INVALID_NICKNAME */
     public static String validate(String nickname) {
         if (nickname == null) throw invalid();
         int length = nickname.codePointCount(0, nickname.length());
-        if (length < MIN || length > MAX) throw invalid();
+        if (length < MIN) throw new GeneralException(UserErrorCode.NICKNAME_TOO_SHORT);
+        if (length > MAX) throw new GeneralException(UserErrorCode.NICKNAME_TOO_LONG);
         if (nickname.codePoints().anyMatch(c -> Character.isWhitespace(c) || Character.isSpaceChar(c)
                 || Character.isISOControl(c) || Character.getType(c) == Character.FORMAT)) {
             throw invalid();

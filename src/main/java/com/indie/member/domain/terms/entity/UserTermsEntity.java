@@ -41,8 +41,4 @@ public class UserTermsEntity {
         e.createdAt = at;
         return e;
     }
-
-    public Long getTermsId() { return termsId; }
-    public boolean isAgreed() { return agreed; }
-    public OffsetDateTime getCreatedAt() { return createdAt; }
 }

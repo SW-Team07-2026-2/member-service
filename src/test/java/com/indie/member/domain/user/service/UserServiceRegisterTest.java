@@ -5,11 +5,16 @@ import com.indie.member.domain.collection.repository.CollectionRepositoryAdapter
 import com.indie.member.domain.follow.repository.FollowRepositoryAdapter;
 import com.indie.member.domain.follow.service.FollowService;
 import com.indie.member.domain.terms.dto.request.TermsAgreement;
+import com.indie.member.domain.terms.entity.AgreementItem;
+import com.indie.member.domain.terms.entity.TermsCode;
+import com.indie.member.domain.terms.repository.TermsRepositoryAdapter;
+import com.indie.member.domain.terms.repository.UserTermsRepositoryAdapter;
 import com.indie.member.domain.terms.service.TermsService;
 import com.indie.member.domain.user.entity.UserEntity;
 import com.indie.member.domain.wishlist.repository.WishlistRepositoryAdapter;
 import com.indie.member.global.config.QuerydslConfig;
 import com.indie.member.global.outbox.OutboxAppender;
+import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
@@ -31,7 +36,9 @@ import java.time.Clock;
 import java.util.List;
 import java.util.UUID;
 
+import static com.indie.member.domain.terms.entity.QUserTermsEntity.userTermsEntity;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 /**
  * Flyway V8 · V9 (약관 · 동의 이력) 스키마 위에서 가입 — 회원 · 팔로우 · 동의 이력이 한 번에, 두 번째 가입은 기존 회원으로. Docker 가 없으면 건너뜁니다.
@@ -42,7 +49,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @Import({UserService.class, FollowService.class, FollowRepositoryAdapter.class, WishlistRepositoryAdapter.class,
-        CollectionRepositoryAdapter.class, TermsService.class, OutboxAppender.class, QuerydslConfig.class,
+        CollectionRepositoryAdapter.class, TermsService.class, TermsRepositoryAdapter.class,
+        UserTermsRepositoryAdapter.class, OutboxAppender.class, QuerydslConfig.class,
         UserServiceRegisterTest.Beans.class})
 class UserServiceRegisterTest {
 
@@ -64,6 +72,8 @@ class UserServiceRegisterTest {
     }
 
     @Autowired UserService service;
+    @Autowired TermsService terms;
+    @Autowired JPAQueryFactory query;
     @Autowired JdbcTemplate jdbc;
 
 
@@ -76,9 +86,8 @@ class UserServiceRegisterTest {
         assertThat(result.newUser()).isTrue();
         assertThat(jdbc.queryForList("SELECT artist_id FROM follow WHERE user_id = ? ORDER BY artist_id", Long.class, userId))
                 .containsExactly(3L, 5L);
-        assertThat(jdbc.queryForList("SELECT t.code || ':' || ut.agreed || ':' || ut.channel FROM user_terms ut"
-                + " JOIN terms t ON t.id = ut.terms_id WHERE ut.user_id = ? ORDER BY t.id", String.class, userId))
-                .containsExactly("AGE14:true:SIGNUP", "TOS:true:SIGNUP", "PRIVACY:true:SIGNUP", "MARKETING:false:SIGNUP");
+        assertThat(terms.myAgreements(userId)).extracting(AgreementItem::code, AgreementItem::agreed).containsExactly(
+                tuple(TermsCode.AGE14, true), tuple(TermsCode.TOS, true), tuple(TermsCode.PRIVACY, true), tuple(TermsCode.MARKETING, false));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM outbox WHERE (payload->>'userId')::bigint = ? AND payload->>'type' = 'FOLLOW'",
                 Long.class, userId)).isEqualTo(2);
     }
@@ -94,7 +103,8 @@ class UserServiceRegisterTest {
         assertThat(second.newUser()).isFalse();
         assertThat(second.user().getId()).isEqualTo(first);
         assertThat(jdbc.queryForList("SELECT artist_id FROM follow WHERE user_id = ?", Long.class, first)).containsExactly(7L);
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_terms WHERE user_id = ?", Long.class, first)).isEqualTo(4);
+        assertThat(query.select(userTermsEntity.count()).from(userTermsEntity).where(userTermsEntity.userId.eq(first)).fetchOne())
+                .isEqualTo(4);
     }
 
     /** 로그인 단계에서는 회원을 만들지 않습니다 */
@@ -107,9 +117,8 @@ class UserServiceRegisterTest {
     }
 
     private UserService.LoginResult register(String uid, List<Long> artistIds) {
-        // V9 시드 4개 — 마케팅(선택)만 동의 안 함 (TermsService.checkSignup 을 거친 모양)
-        List<TermsAgreement> agreements = jdbc.queryForList("SELECT id, required FROM terms ORDER BY id").stream()
-                .map(r -> new TermsAgreement(((Number) r.get("id")).longValue(), (Boolean) r.get("required"))).toList();
+        // 필수만 동의 — 마케팅(선택)은 안 함 (TermsService.checkSignup 을 거친 모양)
+        List<TermsAgreement> agreements = terms.current().stream().map(t -> new TermsAgreement(t.getId(), t.isRequired())).toList();
         return service.register(UserEntity.Provider.KAKAO, uid, null, "새벽", null, artistIds, agreements);
     }
 }

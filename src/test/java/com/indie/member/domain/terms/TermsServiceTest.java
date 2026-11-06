@@ -2,12 +2,19 @@ package com.indie.member.domain.terms;
 
 import com.indie.member.domain.terms.dto.request.TermsAgreement;
 import com.indie.member.domain.terms.dto.response.MarketingView;
-import com.indie.member.domain.terms.dto.response.MyAgreementView;
+import com.indie.member.domain.terms.entity.AgreementItem;
 import com.indie.member.domain.terms.entity.TermsCode;
 import com.indie.member.domain.terms.entity.TermsEntity;
+import com.indie.member.domain.terms.entity.UserTermsEntity.Channel;
 import com.indie.member.domain.terms.exception.TermsErrorCode;
+import com.indie.member.domain.terms.repository.TermsJpaRepository;
+import com.indie.member.domain.terms.repository.TermsRepositoryAdapter;
+import com.indie.member.domain.terms.repository.UserTermsRepositoryAdapter;
 import com.indie.member.domain.terms.service.TermsService;
+import com.indie.member.domain.user.repository.UserJpaRepository;
 import com.indie.member.global.common.exception.GeneralException;
+import com.indie.member.global.config.QuerydslConfig;
+import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,7 +23,6 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Propagation;
@@ -27,23 +33,29 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 import java.time.Clock;
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import static com.indie.member.domain.terms.entity.QTermsEntity.termsEntity;
+import static com.indie.member.domain.terms.entity.QUserTermsEntity.userTermsEntity;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 /**
- * Flyway V8 · V9 위에서 약관 · 동의 — 현재 버전 고르기 · 가입 검사 · MY 마케팅 켜고 끄기. Docker 가 없으면 건너뜁니다.
+ * Flyway V8 · V9 · V10 위에서 약관 · 동의 — 현재 버전 고르기 · 가입 검사 · 게시 문서 · MY 마케팅 켜고 끄기. Docker 가 없으면 건너뜁니다.
  * 서비스 호출마다 커밋합니다 (운영과 같게)
  */
 @Testcontainers(disabledWithoutDocker = true)
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=validate")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-@Import({TermsService.class, TermsServiceTest.Beans.class})
+@Import({TermsService.class, TermsRepositoryAdapter.class, UserTermsRepositoryAdapter.class, QuerydslConfig.class,
+        TermsServiceTest.Beans.class})
 class TermsServiceTest {
 
     @Container
@@ -63,7 +75,9 @@ class TermsServiceTest {
     }
 
     @Autowired TermsService service;
-    @Autowired JdbcTemplate jdbc;
+    @Autowired TermsJpaRepository terms;
+    @Autowired UserJpaRepository users;
+    @Autowired JPAQueryFactory query;
 
     private Map<TermsCode, Long> ids;
 
@@ -108,22 +122,38 @@ class TermsServiceTest {
                 new TermsAgreement(999_999L, true))), TermsErrorCode.TERMS_OUTDATED);
     }
 
+    /** M25 — V10 처리방침은 게시 문서: 가입 화면(M24) · 가입 검사에 없고 따로 내려감 */
+    @Test
+    void privacyPolicyIsDocumentNotConsent() {
+        TermsEntity policy = service.document(TermsCode.PRIVACY_POLICY);
+
+        assertThat(policy.getTitle()).isEqualTo("개인정보처리방침");
+        assertThat(policy.isRequired()).isFalse();
+        assertThat(policy.getContent()).startsWith("# 개인정보처리방침");
+        assertThat(service.current()).extracting(TermsEntity::getCode).doesNotContain(TermsCode.PRIVACY_POLICY);
+        assertThat(service.document(TermsCode.TOS).getId()).isEqualTo(ids.get(TermsCode.TOS));
+        assertCode(() -> service.checkSignup(List.of(agree(TermsCode.AGE14), agree(TermsCode.TOS), agree(TermsCode.PRIVACY),
+                new TermsAgreement(policy.getId(), true))), TermsErrorCode.TERMS_OUTDATED);
+    }
+
     /** 새 버전이 시행되면 옛 id 는 409 · 시행 전(공지 기간)이면 옛 버전이 그대로 현재 */
     @Test
     void newVersionReplacesOldOnlyAfterEffectiveAt() {
         long v1 = ids.get(TermsCode.TOS);
+        OffsetDateTime now = OffsetDateTime.now();
+        List<TermsEntity> added = new ArrayList<>();
         try {
-            jdbc.update("INSERT INTO terms (code, version, title, content, required, effective_at)"
-                    + " VALUES ('TOS', 'v-future', '이용약관', '# 미래', true, now() + interval '7 days')");
-            assertThat(currentId(TermsCode.TOS)).isEqualTo(v1);
+            added.add(terms.save(TermsEntity.of(TermsCode.TOS, "v-future", "이용약관", "# 미래", true, now.plusDays(7))));
+            assertThat(service.document(TermsCode.TOS).getId()).isEqualTo(v1);
 
-            jdbc.update("INSERT INTO terms (code, version, title, content, required, effective_at)"
-                    + " VALUES ('TOS', 'v-now', '이용약관', '# 지금', true, now() - interval '1 minute')");
-            assertThat(currentId(TermsCode.TOS)).isNotEqualTo(v1);
+            added.add(terms.save(TermsEntity.of(TermsCode.TOS, "v-now", "이용약관", "# 지금", true, now.minusMinutes(1))));
+            assertThat(service.document(TermsCode.TOS).getId()).isEqualTo(added.get(1).getId());
+            assertThat(service.current()).extracting(TermsEntity::getCode)
+                    .containsExactly(TermsCode.AGE14, TermsCode.TOS, TermsCode.PRIVACY, TermsCode.MARKETING);
             assertCode(() -> service.checkSignup(List.of(agree(TermsCode.AGE14), new TermsAgreement(v1, true),
                     agree(TermsCode.PRIVACY))), TermsErrorCode.TERMS_OUTDATED);
         } finally {
-            jdbc.update("DELETE FROM terms WHERE version IN ('v-future', 'v-now')");
+            terms.deleteAll(added);
         }
     }
 
@@ -141,14 +171,17 @@ class TermsServiceTest {
         assertThat(same.agreed()).isFalse();
         assertThat(on.agreed()).isTrue();
         assertThat(again.at()).isAtSameInstantAs(on.at());
-        assertThat(jdbc.queryForList("SELECT ut.agreed || ':' || ut.channel FROM user_terms ut JOIN terms t ON t.id = ut.terms_id"
-                + " WHERE ut.user_id = ? AND t.code = 'MARKETING' ORDER BY ut.id", String.class, userId))
-                .containsExactly("false:SIGNUP", "true:MY");
+        assertThat(query.select(userTermsEntity.agreed, userTermsEntity.channel).from(userTermsEntity)
+                .join(termsEntity).on(termsEntity.id.eq(userTermsEntity.termsId))
+                .where(userTermsEntity.userId.eq(userId), termsEntity.code.eq(TermsCode.MARKETING))
+                .orderBy(userTermsEntity.id.asc()).fetch())
+                .extracting(t -> t.get(userTermsEntity.agreed), t -> t.get(userTermsEntity.channel))
+                .containsExactly(tuple(false, Channel.SIGNUP), tuple(true, Channel.MY));
 
-        List<MyAgreementView> mine = service.myAgreements(userId);
-        assertThat(mine).extracting(MyAgreementView::code)
+        List<AgreementItem> mine = service.myAgreements(userId);
+        assertThat(mine).extracting(AgreementItem::code)
                 .containsExactly(TermsCode.AGE14, TermsCode.TOS, TermsCode.PRIVACY, TermsCode.MARKETING);
-        assertThat(mine).extracting(MyAgreementView::agreed).containsExactly(true, true, true, true);
+        assertThat(mine).extracting(AgreementItem::agreed).containsExactly(true, true, true, true);
     }
 
     /** 가입 전 회원(동의 이력 없음)도 MY 에서 빈 목록 · 마케팅을 켤 수 있음 */
@@ -158,20 +191,15 @@ class TermsServiceTest {
 
         assertThat(service.myAgreements(userId)).isEmpty();
         assertThat(service.changeMarketing(userId, true).agreed()).isTrue();
-        assertThat(service.myAgreements(userId)).extracting(MyAgreementView::code).containsExactly(TermsCode.MARKETING);
+        assertThat(service.myAgreements(userId)).extracting(AgreementItem::code).containsExactly(TermsCode.MARKETING);
     }
 
     private TermsAgreement agree(TermsCode code) {
         return new TermsAgreement(ids.get(code), true);
     }
 
-    private long currentId(TermsCode code) {
-        return service.current().stream().filter(t -> t.getCode() == code).findFirst().orElseThrow().getId();
-    }
-
     private long newUser() {
-        return jdbc.queryForObject("INSERT INTO users (provider, provider_uid, nickname) VALUES ('KAKAO', ?, '약관') RETURNING id",
-                Long.class, UUID.randomUUID().toString());
+        return users.insertIgnore("KAKAO", UUID.randomUUID().toString(), null, "약관", null).orElseThrow();
     }
 
     private static void assertCode(Runnable call, TermsErrorCode code) {

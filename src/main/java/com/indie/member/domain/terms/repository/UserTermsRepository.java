@@ -1,16 +1,17 @@
 package com.indie.member.domain.terms.repository;
 
+import com.indie.member.domain.terms.entity.AgreementItem;
 import com.indie.member.domain.terms.entity.UserTermsEntity;
 
 import java.util.List;
 
-/** 동의 이력 저장소 포트 — 구현은 UserTermsJpaRepository (Spring Data). INSERT 만 (이력) */
+/** 동의 이력 저장소 포트 — 구현은 UserTermsRepositoryAdapter. INSERT 만 (이력) */
 public interface UserTermsRepository {
 
-    /** 최근 것부터 */
-    List<UserTermsEntity> findByUserIdOrderByCreatedAtDescIdDesc(Long userId);
+    void append(UserTermsEntity row);
 
-    UserTermsEntity save(UserTermsEntity row);
+    void appendAll(List<UserTermsEntity> rows);
 
-    <S extends UserTermsEntity> List<S> saveAll(Iterable<S> rows);
+    /** 약관 코드마다 마지막 기록 (버전이 바뀌어도 코드 기준) · 순서 없음 */
+    List<AgreementItem> findLatest(long userId);
 }

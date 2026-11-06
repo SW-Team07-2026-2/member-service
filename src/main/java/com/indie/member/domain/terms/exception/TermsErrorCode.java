@@ -7,7 +7,8 @@ import org.springframework.http.HttpStatus;
 public enum TermsErrorCode implements BaseErrorCode {
 
     REQUIRED_AGREEMENT_MISSING(HttpStatus.BAD_REQUEST, "필수 약관에 동의해주세요"),
-    TERMS_OUTDATED(HttpStatus.CONFLICT, "약관이 바뀌었어요. 다시 확인하고 동의해주세요");   // 현재 버전이 아닌 termsId
+    TERMS_OUTDATED(HttpStatus.CONFLICT, "약관이 바뀌었어요. 다시 확인하고 동의해주세요"),   // 현재 버전이 아닌 termsId
+    TERMS_NOT_FOUND(HttpStatus.NOT_FOUND, "약관을 찾을 수 없어요");                          // M25 — 시행 중인 버전이 없음
 
     private final HttpStatus status;
     private final String message;

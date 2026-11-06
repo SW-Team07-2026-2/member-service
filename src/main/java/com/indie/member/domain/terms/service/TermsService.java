@@ -2,7 +2,7 @@ package com.indie.member.domain.terms.service;
 
 import com.indie.member.domain.terms.dto.request.TermsAgreement;
 import com.indie.member.domain.terms.dto.response.MarketingView;
-import com.indie.member.domain.terms.dto.response.MyAgreementView;
+import com.indie.member.domain.terms.entity.AgreementItem;
 import com.indie.member.domain.terms.entity.TermsCode;
 import com.indie.member.domain.terms.entity.TermsEntity;
 import com.indie.member.domain.terms.entity.UserTermsEntity;
@@ -18,7 +18,6 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,9 +32,6 @@ import java.util.stream.Collectors;
 @Service
 public class TermsService {
 
-    private static final Comparator<TermsEntity> NEWER =
-            Comparator.comparing(TermsEntity::getEffectiveAt).thenComparing(TermsEntity::getId);
-
     private final TermsRepository termsRepository;
     private final UserTermsRepository userTermsRepository;
     private final Clock clock;
@@ -46,14 +42,18 @@ public class TermsService {
         this.clock = clock;
     }
 
-    /** M24 — 코드마다 현재 버전 하나 · 가입 화면 순서 (TermsCode 선언 순서) */
+    /** M24 — 동의받는 약관만, 코드마다 현재 버전 하나 · 가입 화면 순서 (TermsCode 선언 순서) */
     @Transactional(readOnly = true)
     public List<TermsEntity> current() {
-        Map<TermsCode, TermsEntity> latest = new EnumMap<>(TermsCode.class);
-        for (TermsEntity t : termsRepository.findByEffectiveAtLessThanEqual(now())) {
-            latest.merge(t.getCode(), t, (a, b) -> NEWER.compare(a, b) >= 0 ? a : b);
-        }
-        return List.copyOf(latest.values());
+        return termsRepository.findCurrent(TermsCode.consents(), now()).stream()
+                .sorted(Comparator.comparing(TermsEntity::getCode)).toList();
+    }
+
+    /** M25 — 문서 하나의 현재 버전 (푸터 약관 화면 · 게시 문서 포함) */
+    @Transactional(readOnly = true)
+    public TermsEntity document(TermsCode code) {
+        return termsRepository.findCurrent(List.of(code), now()).stream().findFirst()
+                .orElseThrow(() -> new GeneralException(TermsErrorCode.TERMS_NOT_FOUND));   // 아직 시행 전 (effective_at 이 미래)
     }
 
     /**
@@ -81,36 +81,27 @@ public class TermsService {
     @Transactional
     public void recordSignup(long userId, List<TermsAgreement> agreements) {
         OffsetDateTime now = now();
-        userTermsRepository.saveAll(agreements.stream()
+        userTermsRepository.appendAll(agreements.stream()
                 .map(a -> UserTermsEntity.of(userId, a.termsId(), a.agreed(), Channel.SIGNUP, now)).toList());
     }
 
     /** M17 — 약관 코드마다 마지막 기록 (버전이 바뀌어도 코드 기준) · 가입 화면 순서 */
     @Transactional(readOnly = true)
-    public List<MyAgreementView> myAgreements(long userId) {
-        List<UserTermsEntity> rows = userTermsRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId);
-        Map<Long, TermsEntity> terms = termsRepository.findAllById(rows.stream().map(UserTermsEntity::getTermsId).distinct().toList())
-                .stream().collect(Collectors.toMap(TermsEntity::getId, Function.identity()));
-        Map<TermsCode, MyAgreementView> latest = new EnumMap<>(TermsCode.class);
-        for (UserTermsEntity row : rows) {   // 최근 것부터 — 코드마다 처음 본 행이 마지막 기록
-            TermsEntity t = terms.get(row.getTermsId());
-            latest.putIfAbsent(t.getCode(), MyAgreementView.of(t, row));
-        }
-        return List.copyOf(latest.values());
+    public List<AgreementItem> myAgreements(long userId) {
+        return userTermsRepository.findLatest(userId).stream()
+                .sorted(Comparator.comparing(AgreementItem::code)).toList();
     }
 
     /** M18 — 현재 마케팅 약관으로 이력 1행 (channel=MY). 지금 값과 같으면 남기지 않고 마지막 기록을 돌려줍니다 */
     @Transactional
     public MarketingView changeMarketing(long userId, boolean agreed) {
-        Optional<MyAgreementView> last = myAgreements(userId).stream()
+        Optional<AgreementItem> last = myAgreements(userId).stream()
                 .filter(a -> a.code() == TermsCode.MARKETING).findFirst();
         if (last.isPresent() && last.get().agreed() == agreed) {
             return new MarketingView(agreed, last.get().at());
         }
-        TermsEntity marketing = current().stream().filter(t -> t.getCode() == TermsCode.MARKETING).findFirst()
-                .orElseThrow(() -> new IllegalStateException("no current MARKETING terms"));
         OffsetDateTime now = now();
-        userTermsRepository.save(UserTermsEntity.of(userId, marketing.getId(), agreed, Channel.MY, now));
+        userTermsRepository.append(UserTermsEntity.of(userId, document(TermsCode.MARKETING).getId(), agreed, Channel.MY, now));
         return new MarketingView(agreed, now);
     }
 

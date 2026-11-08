@@ -8,6 +8,7 @@ import com.indie.member.domain.terms.entity.TermsEntity;
 import com.indie.member.domain.terms.entity.UserTermsEntity.Channel;
 import com.indie.member.domain.terms.exception.TermsErrorCode;
 import com.indie.member.domain.terms.repository.TermsJpaRepository;
+import com.indie.member.domain.terms.repository.TermsRepository;
 import com.indie.member.domain.terms.repository.TermsRepositoryAdapter;
 import com.indie.member.domain.terms.repository.UserTermsRepositoryAdapter;
 import com.indie.member.domain.terms.service.TermsService;
@@ -47,7 +48,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 /**
- * Flyway V8 · V9 · V10 위에서 약관 · 동의 — 현재 버전 고르기 · 가입 검사 · 게시 문서 · MY 마케팅 켜고 끄기. Docker 가 없으면 건너뜁니다.
+ * Flyway V8 · V9 · V10 · V12 위에서 약관 · 동의 — 현재 버전 고르기 · 가입 검사 · 게시 문서 · MY 마케팅 켜고 끄기. Docker 가 없으면 건너뜁니다.
  * 서비스 호출마다 커밋합니다 (운영과 같게)
  */
 @Testcontainers(disabledWithoutDocker = true)
@@ -76,6 +77,7 @@ class TermsServiceTest {
 
     @Autowired TermsService service;
     @Autowired TermsJpaRepository terms;
+    @Autowired TermsRepository repository;
     @Autowired UserJpaRepository users;
     @Autowired JPAQueryFactory query;
 
@@ -134,6 +136,19 @@ class TermsServiceTest {
         assertThat(service.document(TermsCode.TOS).getId()).isEqualTo(ids.get(TermsCode.TOS));
         assertCode(() -> service.checkSignup(List.of(agree(TermsCode.AGE14), agree(TermsCode.TOS), agree(TermsCode.PRIVACY),
                 new TermsAgreement(policy.getId(), true))), TermsErrorCode.TERMS_OUTDATED);
+    }
+
+    /** V12 — 대화 기록 고지 v2 는 7일 공지 뒤 시행. 실행 날짜와 무관하게 시점을 넘겨 확인합니다 */
+    @Test
+    void chatHistoryNoticeTakesEffectOnNovember14() {
+        List<TermsCode> codes = List.of(TermsCode.PRIVACY, TermsCode.PRIVACY_POLICY);
+
+        assertThat(repository.findCurrent(codes, OffsetDateTime.parse("2026-11-13T23:59:59+09:00")))
+                .extracting(TermsEntity::getVersion).containsOnly("v1");
+
+        List<TermsEntity> v2 = repository.findCurrent(codes, OffsetDateTime.parse("2026-11-14T00:00:00+09:00"));
+        assertThat(v2).hasSize(2).extracting(TermsEntity::getVersion).containsOnly("v2");
+        assertThat(v2).allSatisfy(t -> assertThat(t.getContent()).contains("챗봇 답변", "최근 메시지 50개"));
     }
 
     /** 새 버전이 시행되면 옛 id 는 409 · 시행 전(공지 기간)이면 옛 버전이 그대로 현재 */

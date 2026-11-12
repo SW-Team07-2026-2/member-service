@@ -1,7 +1,6 @@
 package com.indie.member.domain.collection.controller;
 
 import com.indie.member.domain.collection.dto.request.CollectionAddRequest;
-import com.indie.member.domain.collection.entity.CollectionEntity;
 import com.indie.member.domain.collection.entity.CollectionItem;
 import com.indie.member.domain.collection.service.CollectionService;
 import com.indie.member.global.auth.CurrentUser;
@@ -12,6 +11,7 @@ import com.indie.member.global.common.util.PageSize;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 공개 API 15 · 16 — 보유 음반.
+ * 공개 API 15 · 16 — 보유 음반 (피지컬 앨범의 옵션 단위).
  * GET /{id} 는 16종 밖이지만 DoD #16(남의 id 로 조회 → 404)을 검증할 경로로 둡니다.
  */
 @RestController
@@ -51,6 +51,12 @@ public class CollectionController {
 
     @PostMapping
     public ApiResponse<CollectionItem> add(@CurrentUser Long userId, @Valid @RequestBody CollectionAddRequest request) {
-        return ApiResponse.onSuccess(collectionService.add(userId, request.albumId(), request.acquiredAt(), CollectionEntity.Source.MANUAL));
+        return ApiResponse.onSuccess(collectionService.add(userId, request.physicalAlbumId(), request.optionId(), request.acquiredAt()));
+    }
+
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> delete(@CurrentUser Long userId, @PathVariable @Positive long id) {
+        collectionService.delete(userId, id);
+        return ApiResponse.onSuccess(null);
     }
 }

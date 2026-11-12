@@ -53,7 +53,6 @@ public class ShippingAddressEntity extends BaseEntity {
     public void makeDefault() { this.isDefault = true; }
 
     public Long getId() { return id; }
-    public Long getUserId() { return userId; }
     public String getLabel() { return label; }
     public String getRecipientName() { return recipientName; }
     public String getPhone() { return phone; }

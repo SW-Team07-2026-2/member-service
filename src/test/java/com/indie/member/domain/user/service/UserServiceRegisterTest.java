@@ -10,8 +10,9 @@ import com.indie.member.domain.terms.entity.TermsCode;
 import com.indie.member.domain.terms.repository.TermsRepositoryAdapter;
 import com.indie.member.domain.terms.repository.UserTermsRepositoryAdapter;
 import com.indie.member.domain.terms.service.TermsService;
+import com.indie.member.domain.user.dto.response.EmbeddingSaved;
 import com.indie.member.domain.user.entity.UserEntity;
-import com.indie.member.domain.wishlist.repository.WishlistRepositoryAdapter;
+import com.indie.member.global.common.exception.GeneralException;
 import com.indie.member.global.config.QuerydslConfig;
 import com.indie.member.global.outbox.OutboxAppender;
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -38,6 +39,7 @@ import java.util.UUID;
 
 import static com.indie.member.domain.terms.entity.QUserTermsEntity.userTermsEntity;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 /**
@@ -48,7 +50,7 @@ import static org.assertj.core.api.Assertions.tuple;
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=validate")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-@Import({UserService.class, FollowService.class, FollowRepositoryAdapter.class, WishlistRepositoryAdapter.class,
+@Import({UserService.class, EmbeddingService.class, FollowService.class, FollowRepositoryAdapter.class,
         CollectionRepositoryAdapter.class, TermsService.class, TermsRepositoryAdapter.class,
         UserTermsRepositoryAdapter.class, OutboxAppender.class, QuerydslConfig.class,
         UserServiceRegisterTest.Beans.class})
@@ -72,6 +74,7 @@ class UserServiceRegisterTest {
     }
 
     @Autowired UserService service;
+    @Autowired EmbeddingService embeddings;
     @Autowired TermsService terms;
     @Autowired JPAQueryFactory query;
     @Autowired JdbcTemplate jdbc;
@@ -114,6 +117,74 @@ class UserServiceRegisterTest {
 
         assertThat(service.findOnLogin(UserEntity.Provider.KAKAO, uid, null, null)).isEmpty();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE provider_uid = ?", Long.class, uid)).isZero();
+    }
+
+    /** ★ 탈퇴 = 회원 행 삭제 — member 의 회원 데이터가 CASCADE 로 모두 지워지고 user.withdrawn 이 outbox 에 남습니다 */
+    @Test
+    void deleteRemovesEveryMemberTableRowAndPublishesWithdrawn() {
+        long userId = register(UUID.randomUUID().toString(), List.of(3L)).user().getId();
+        jdbc.update("INSERT INTO shipping_address (user_id, recipient_name, phone, zonecode, address) VALUES (?, '받는분', '01000000000', '12345', '주소')", userId);
+        jdbc.update("INSERT INTO collection (user_id, physical_album_id, option_id) VALUES (?, 1, 2)", userId);
+        jdbc.update("INSERT INTO chat_message (user_id, role, content, spoken_at) VALUES (?, 'USER', '안녕', now())", userId);
+        jdbc.update("INSERT INTO user_notification (user_id, event_id, type, ref_id, message) VALUES (?, ?, 'BOOKING_DONE', 1, '알림')",
+                userId, UUID.randomUUID());
+        jdbc.update("INSERT INTO user_metric (metric_id, user_id, target_type, target_id, metric_type, metric_value, occurred_at) "
+                + "VALUES (?, ?, 'ARTIST', 1, 'DETAIL_VIEW', 1, now())", UUID.randomUUID(), userId);
+
+        service.delete(userId);
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE id = ?", Long.class, userId)).isZero();
+        for (String table : List.of("shipping_address", "user_terms", "follow", "collection", "chat_message",
+                "user_notification", "user_metric")) {
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM " + table + " WHERE user_id = ?", Long.class, userId))
+                    .as(table).isZero();
+        }
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM outbox WHERE event_type = 'user.withdrawn' AND (payload->>'userId')::bigint = ? "
+                        + "AND payload->>'withdrawnAt' IS NOT NULL", Long.class, userId)).isEqualTo(1);
+        assertCode(() -> service.delete(userId), "NOT_FOUND");   // 이미 탈퇴 — 이벤트도 다시 남기지 않습니다
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM outbox WHERE event_type = 'user.withdrawn' "
+                + "AND (payload->>'userId')::bigint = ?", Long.class, userId)).isEqualTo(1);
+    }
+
+    /** 탈퇴한 뒤 같은 소셜 계정으로 다시 오면 처음 온 것과 같습니다 — 새 회원 ID 로 가입 */
+    @Test
+    void sameProviderAccountCanJoinAgainAsNewUser() {
+        String uid = UUID.randomUUID().toString();
+        long first = register(uid, List.of(7L)).user().getId();
+        service.delete(first);
+
+        assertThat(service.findOnLogin(UserEntity.Provider.KAKAO, uid, null, null)).isEmpty();
+        UserService.LoginResult again = register(uid, List.of(8L));
+
+        assertThat(again.newUser()).isTrue();
+        assertThat(again.user().getId()).isNotEqualTo(first);
+        assertThat(jdbc.queryForList("SELECT artist_id FROM follow WHERE user_id = ?", Long.class, again.user().getId()))
+                .containsExactly(8L);
+        assertThat(service.find(first)).isEmpty();
+    }
+
+    /** 회원 벡터 — TEXT 로 저장하고 그대로 돌려줍니다. 프로필(UserEntity)과 섞이지 않습니다 */
+    @Test
+    void embeddingIsStoredAsTextAndReadBack() {
+        UserEntity user = register(UUID.randomUUID().toString(), List.of(3L)).user();
+        long userId = user.getId();
+        assertThat(embeddings.get(userId).embedding()).isNull();
+        assertThat(embeddings.get(userId).updatedAt()).isNull();
+
+        EmbeddingSaved saved = embeddings.save(userId, "  [0.0123,-0.0456, 1e-3]  ");
+
+        assertThat(saved.dimension()).isEqualTo(3);
+        assertThat(embeddings.get(userId).embedding()).isEqualTo("[0.0123,-0.0456, 1e-3]");
+        assertThat(embeddings.get(userId).updatedAt()).isEqualTo(saved.updatedAt());
+        assertThat(service.get(userId).getNickname()).isEqualTo(user.getNickname());   // 프로필은 그대로
+        assertCode(() -> embeddings.save(Long.MAX_VALUE, "[1,2]"), "NOT_FOUND");
+        assertCode(() -> embeddings.get(Long.MAX_VALUE), "NOT_FOUND");
+    }
+
+    private static void assertCode(Runnable action, String code) {
+        assertThatThrownBy(action::run).isInstanceOfSatisfying(GeneralException.class,
+                e -> assertThat(e.getErrorCode().getCode()).isEqualTo(code));
     }
 
     private UserService.LoginResult register(String uid, List<Long> artistIds) {

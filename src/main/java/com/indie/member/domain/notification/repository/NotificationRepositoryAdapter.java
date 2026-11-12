@@ -1,101 +1,117 @@
 package com.indie.member.domain.notification.repository;
 
-import com.indie.member.domain.feed.entity.FeedItem;
-import com.indie.member.domain.feed.repository.FeedItemProjection;
+import com.indie.member.domain.notification.dto.response.NotificationItem;
+import com.indie.member.domain.notification.entity.NotificationType;
 import com.indie.member.global.common.util.Cursor;
-import com.indie.member.global.common.util.CursorPredicates;
-import com.querydsl.core.Tuple;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
-import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Stream;
+import java.util.UUID;
 
-import static com.indie.member.domain.activity.entity.QActivityEntity.activityEntity;
-import static com.indie.member.domain.follow.entity.QFollowEntity.followEntity;
-import static com.indie.member.domain.notification.entity.QNotificationStateEntity.notificationStateEntity;
+import static com.indie.member.domain.notification.entity.QUserNotificationEntity.userNotificationEntity;
 
 /**
- * 알림 = 피드(아티스트 팬아웃) + 본인 전용(target_user_id) — QueryDSL.
- * 예전 UNION ALL 과 같은 결과: 양쪽에서 각각 (occurred_at, id) 내림차순 limit 건 → 합쳐 다시 정렬 → limit 건.
- * 읽음 = occurred_at <= last_seen_at (상태 행이 없으면 전부 미확인).
+ * NotificationRepository 구현.
+ * 복사는 HQL insert … select … on conflict do nothing — 팔로워 수만큼 INSERT 를 보내지 않고 한 문장으로 끝냅니다
+ * (IDENTITY 키라 JPA saveAll 은 묶음 INSERT 가 되지 않습니다).
+ * 충돌 대상은 제약 이름(uq_user_notification_event = UNIQUE(user_id, event_id))으로 적습니다 —
+ * insert … select 에서는 Hibernate 6.5 가 on conflict (userId, eventId) 의 속성 경로를 풀지 못합니다.
  */
 @Repository
 public class NotificationRepositoryAdapter implements NotificationRepository {
 
-    /** 배지는 99+ 까지만 — 양쪽 각각 여기서 끊습니다 */
-    private static final int UNREAD_CAP = 100;
-    private static final Comparator<FeedItem> NEWEST_FIRST =
-            Comparator.comparing(FeedItem::occurredAt).thenComparingLong(FeedItem::id).reversed();
-
     private final JPAQueryFactory query;
-    private final NotificationStateJpaRepository states;
+    private final EntityManager em;
 
-    public NotificationRepositoryAdapter(JPAQueryFactory query, NotificationStateJpaRepository states) {
+    public NotificationRepositoryAdapter(JPAQueryFactory query, EntityManager em) {
         this.query = query;
-        this.states = states;
+        this.em = em;
     }
 
     @Override
-    public List<FeedItem> findNotifications(long userId, Cursor cursor, int limit) {
-        OffsetDateTime lastSeen = lastSeen(userId);
-        List<Tuple> fanout = query.select(FeedItemProjection.COLUMNS)
-                .from(activityEntity)
-                .join(followEntity).on(followEntity.id.artistId.eq(activityEntity.artistId))
-                .where(followEntity.id.userId.eq(userId),
-                        activityEntity.occurredAt.gt(followEntity.followedAt),
-                        CursorPredicates.before(activityEntity.occurredAt, activityEntity.id, cursor))
-                .orderBy(activityEntity.occurredAt.desc(), activityEntity.id.desc())
+    public int fanOut(UUID eventId, NotificationType type, long refId, long artistId, String message) {
+        return em.createQuery("""
+                        insert into UserNotificationEntity (userId, eventId, type, refId, artistId, message)
+                        select f.id.userId, :eventId, :type, :refId, f.id.artistId, :message
+                        from FollowEntity f
+                        where f.id.artistId = :artistId
+                        on conflict on constraint uq_user_notification_event do nothing
+                        """)
+                .setParameter("eventId", eventId)
+                .setParameter("type", type)
+                .setParameter("refId", refId)
+                .setParameter("message", message)
+                .setParameter("artistId", artistId)
+                .executeUpdate();
+    }
+
+    @Override
+    public int addPersonal(long userId, UUID eventId, NotificationType type, long refId, String message) {
+        return em.createQuery("""
+                        insert into UserNotificationEntity (userId, eventId, type, refId, message)
+                        select u.id, :eventId, :type, :refId, :message
+                        from UserEntity u
+                        where u.id = :userId
+                        on conflict on constraint uq_user_notification_event do nothing
+                        """)
+                .setParameter("eventId", eventId)
+                .setParameter("type", type)
+                .setParameter("refId", refId)
+                .setParameter("message", message)
+                .setParameter("userId", userId)
+                .executeUpdate();
+    }
+
+    @Override
+    public List<NotificationItem> findPage(long userId, Cursor cursor, int limit) {
+        return query.selectFrom(userNotificationEntity)
+                .where(userNotificationEntity.userId.eq(userId),
+                        cursor == null ? null : userNotificationEntity.id.lt(cursor.id()))
+                .orderBy(userNotificationEntity.id.desc())
                 .limit(limit)
-                .fetch();
-        List<Tuple> personal = query.select(FeedItemProjection.COLUMNS)
-                .from(activityEntity)
-                .where(activityEntity.targetUserId.eq(userId),
-                        CursorPredicates.before(activityEntity.occurredAt, activityEntity.id, cursor))
-                .orderBy(activityEntity.occurredAt.desc(), activityEntity.id.desc())
-                .limit(limit)
-                .fetch();
-        return Stream.concat(fanout.stream(), personal.stream())
-                .map(t -> {
-                    OffsetDateTime at = t.get(activityEntity.occurredAt);
-                    return FeedItemProjection.toItem(t, lastSeen != null && !at.isAfter(lastSeen));
-                })
-                .sorted(NEWEST_FIRST)
-                .limit(limit)
+                .fetch().stream()
+                .map(NotificationItem::of)
                 .toList();
     }
 
     @Override
-    public int countUnread(long userId) {
-        OffsetDateTime lastSeen = lastSeen(userId);
-        int fanout = query.select(activityEntity.id)
-                .from(activityEntity)
-                .join(followEntity).on(followEntity.id.artistId.eq(activityEntity.artistId))
-                .where(followEntity.id.userId.eq(userId),
-                        activityEntity.occurredAt.gt(followEntity.followedAt),
-                        lastSeen == null ? null : activityEntity.occurredAt.gt(lastSeen))
-                .limit(UNREAD_CAP)
+    public int countUnread(long userId, int cap) {
+        return query.select(userNotificationEntity.id)
+                .from(userNotificationEntity)
+                .where(userNotificationEntity.userId.eq(userId), userNotificationEntity.read.isFalse())
+                .limit(cap)
                 .fetch().size();
-        int personal = query.select(activityEntity.id)
-                .from(activityEntity)
-                .where(activityEntity.targetUserId.eq(userId),
-                        lastSeen == null ? null : activityEntity.occurredAt.gt(lastSeen))
-                .limit(UNREAD_CAP)
-                .fetch().size();
-        return fanout + personal;
     }
 
     @Override
-    public void markRead(long userId) {
-        states.upsertSeenNow(userId);
+    public boolean markRead(long id, long userId) {
+        return query.update(userNotificationEntity)
+                .set(userNotificationEntity.read, true)
+                .where(userNotificationEntity.id.eq(id), userNotificationEntity.userId.eq(userId))
+                .execute() == 1;
     }
 
-    private OffsetDateTime lastSeen(long userId) {
-        return query.select(notificationStateEntity.lastSeenAt)
-                .from(notificationStateEntity)
-                .where(notificationStateEntity.userId.eq(userId))
-                .fetchOne();
+    @Override
+    public int markAllRead(long userId) {
+        return (int) query.update(userNotificationEntity)
+                .set(userNotificationEntity.read, true)
+                .where(userNotificationEntity.userId.eq(userId), userNotificationEntity.read.isFalse())
+                .execute();
+    }
+
+    @Override
+    public int deleteCreatedBefore(OffsetDateTime cutoff, int limit) {
+        List<Long> ids = query.select(userNotificationEntity.id)
+                .from(userNotificationEntity)
+                .where(userNotificationEntity.createdAt.lt(cutoff))
+                .limit(limit)
+                .fetch();
+        if (ids.isEmpty()) {
+            return 0;
+        }
+        return (int) query.delete(userNotificationEntity).where(userNotificationEntity.id.in(ids)).execute();
     }
 }

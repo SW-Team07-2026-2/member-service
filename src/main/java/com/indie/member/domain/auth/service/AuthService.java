@@ -90,17 +90,18 @@ public class AuthService {
             }
             default -> { }
         }
-        UserEntity user = userService.get(rotation.userId());
-        if (user.getStatus() == UserEntity.Status.WITHDRAWN) {
-            refreshTokenStore.revokeAll(user.getId());
+        Optional<UserEntity> found = userService.find(rotation.userId());
+        if (found.isEmpty()) {   // 탈퇴한 회원의 RT — 남은 RT 를 모두 지웁니다
+            refreshTokenStore.revokeAll(rotation.userId());
             throw new GeneralException(AuthErrorCode.REFRESH_INVALID);
         }
+        UserEntity user = found.get();
         return new RefreshResponse(user.getId(), tokenIssuer.issueAccessToken(user), rotation.newRefreshToken());
     }
 
     private IssueResponse tokens(UserEntity user, boolean newUser) {
         return new IssueResponse(user.getId(), tokenIssuer.issueAccessToken(user), refreshTokenStore.create(user.getId()),
-                user.roleList(), user.getNickname(), newUser, null);
+                TokenIssuer.ROLES, user.getNickname(), newUser, null);
     }
 
     /**

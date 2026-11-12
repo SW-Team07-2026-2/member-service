@@ -1,20 +1,25 @@
 package com.indie.member.domain.user.service;
 
 import com.indie.member.domain.user.entity.ChatMessage;
-import com.indie.member.domain.user.entity.UserEntity;
 import com.indie.member.domain.user.repository.ChatHistoryRepository;
 import com.indie.member.global.common.exception.GeneralException;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class ChatHistoryServiceUnitTest {
 
@@ -22,36 +27,42 @@ class ChatHistoryServiceUnitTest {
     private final ChatHistoryService service = new ChatHistoryService(repository);
 
     @Test
-    void appendRetainsLast50AndDoesNotSortBySpokenTime() {
-        when(repository.find(42, true)).thenReturn(Optional.of(new ChatHistoryRepository.History(
-                UserEntity.Status.ACTIVE, messages(0, 50))));
-        List<ChatMessage> retained = service.append(42, messages(50, 52));
-        assertThat(retained).containsExactlyElementsOf(messages(2, 52));
-        verify(repository).save(42, retained);
+    void appendLocksMemberThenInsertsTrimsTo50AndReturnsStored() {
+        when(repository.lockUser(42)).thenReturn(true);
+        when(repository.findRecent(42, 50)).thenReturn(messages(2, 52));
+        List<ChatMessage> incoming = messages(50, 52);
+
+        assertThat(service.append(42, incoming)).containsExactlyElementsOf(messages(2, 52));
+        InOrder order = inOrder(repository);
+        order.verify(repository).lockUser(42);
+        order.verify(repository).insert(42, incoming);
+        order.verify(repository).deleteAllButRecent(42, 50);
+        order.verify(repository).findRecent(42, 50);
     }
 
     @Test
-    void initialHistoryIsEmptyAndReadDoesNotWrite() {
-        when(repository.find(42, false)).thenReturn(Optional.of(new ChatHistoryRepository.History(UserEntity.Status.ACTIVE, List.of())));
+    void initialHistoryIsEmptyAndReadDoesNotLockOrWrite() {
+        when(repository.userExists(42)).thenReturn(true);
+        when(repository.findRecent(42, 50)).thenReturn(List.of());
         assertThat(service.get(42)).isEmpty();
-        verify(repository, never()).save(anyLong(), anyList());
+        verify(repository, never()).lockUser(anyLong());
+        verifyNoWrites();
     }
 
+    /** 탈퇴한 회원은 행이 없습니다 — 읽기 · 쓰기 모두 404 */
     @Test
     void missingMemberCannotReadOrWrite() {
-        when(repository.find(eq(42L), anyBoolean())).thenReturn(Optional.empty());
+        when(repository.userExists(42)).thenReturn(false);
+        when(repository.lockUser(42)).thenReturn(false);
         assertCode(() -> service.get(42), "NOT_FOUND");
         assertCode(() -> service.append(42, messages(0, 1)), "NOT_FOUND");
-        verify(repository, never()).save(anyLong(), anyList());
+        verify(repository, never()).findRecent(anyLong(), anyInt());
+        verifyNoWrites();
     }
 
-    @Test
-    void withdrawnMemberCannotReadOrWrite() {
-        when(repository.find(eq(42L), anyBoolean())).thenReturn(Optional.of(new ChatHistoryRepository.History(
-                UserEntity.Status.WITHDRAWN, messages(0, 1))));
-        assertCode(() -> service.get(42), "ACCOUNT_WITHDRAWN");
-        assertCode(() -> service.append(42, messages(1, 2)), "ACCOUNT_WITHDRAWN");
-        verify(repository, never()).save(anyLong(), anyList());
+    private void verifyNoWrites() {
+        verify(repository, never()).insert(anyLong(), anyList());
+        verify(repository, never()).deleteAllButRecent(anyLong(), anyInt());
     }
 
     private static List<ChatMessage> messages(int from, int to) {

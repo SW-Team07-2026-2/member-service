@@ -24,6 +24,6 @@ public class InternalProfileController {
     @GetMapping("/internal/members/{id}/profile")
     public ApiResponse<ProfileResponse> profile(@PathVariable long id) {
         UserEntity u = userService.get(id);
-        return ApiResponse.onSuccess(new ProfileResponse(u.getId(), u.getNickname(), u.getProfileImageUrl(), u.roleList(), u.getStatus().name()));
+        return ApiResponse.onSuccess(new ProfileResponse(u.getId(), u.getNickname(), u.getProfileImageUrl()));
     }
 }

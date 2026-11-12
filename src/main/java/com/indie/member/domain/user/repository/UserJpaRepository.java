@@ -2,6 +2,7 @@ package com.indie.member.domain.user.repository;
 
 import com.indie.member.domain.user.entity.UserEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -24,4 +25,9 @@ public interface UserJpaRepository extends JpaRepository<UserEntity, Long>, User
     Optional<Long> insertIgnore(@Param("provider") String provider, @Param("providerUid") String providerUid,
                                 @Param("email") String email, @Param("nickname") String nickname,
                                 @Param("profileImageUrl") String profileImageUrl);
+
+    @Override
+    @Modifying
+    @Query("delete from UserEntity u where u.id = :id")
+    int deleteOne(@Param("id") long id);
 }

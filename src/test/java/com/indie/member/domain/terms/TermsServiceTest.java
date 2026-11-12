@@ -151,6 +151,22 @@ class TermsServiceTest {
         assertThat(v2).allSatisfy(t -> assertThat(t.getContent()).contains("챗봇 답변", "최근 메시지 50개"));
     }
 
+    /** V14 — member v2 고지 v3 (행동 기록 · 알림 보관 · 분석 쿠키) 는 7일 공지 뒤 2026-11-21 시행 */
+    @Test
+    void memberV2NoticeTakesEffectOnNovember21() {
+        List<TermsCode> codes = List.of(TermsCode.PRIVACY, TermsCode.PRIVACY_POLICY);
+
+        assertThat(repository.findCurrent(codes, OffsetDateTime.parse("2026-11-20T23:59:59+09:00")))
+                .extracting(TermsEntity::getVersion).containsOnly("v2");
+
+        List<TermsEntity> v3 = repository.findCurrent(codes, OffsetDateTime.parse("2026-11-21T00:00:00+09:00"));
+        assertThat(v3).hasSize(2).extracting(TermsEntity::getVersion).containsOnly("v3");
+        assertThat(v3).allSatisfy(t -> assertThat(t.getContent())
+                .contains("서비스 이용 기록", "6개월", "3개월", "장바구니").doesNotContain("위시리스트", "고른 장르"));
+        TermsEntity policy = v3.stream().filter(t -> t.getCode() == TermsCode.PRIVACY_POLICY).findFirst().orElseThrow();
+        assertThat(policy.getContent()).contains("Google Analytics").doesNotContain("추적 쿠키는 사용하지 않습니다");
+    }
+
     /** 새 버전이 시행되면 옛 id 는 409 · 시행 전(공지 기간)이면 옛 버전이 그대로 현재 */
     @Test
     void newVersionReplacesOldOnlyAfterEffectiveAt() {

@@ -1,7 +1,7 @@
 # 챗봇 대화 기록 API
 
 챗봇 서비스가 로그인한 회원의 질문과 답변을 저장·복원하는 내부 호출 계약입니다.
-회원 테이블 `users.chat_history`의 JSONB 배열에 저장하며 Redis 캐시·TTL을 사용하지 않습니다.
+`member.chat_message` 테이블에 메시지 1개당 1행으로 저장하며 Redis 캐시·TTL을 사용하지 않습니다 (member v2 · [V13](../src/main/resources/db/migration/V13__member_v2_schema.sql)).
 
 ## Gateway 호출
 
@@ -17,20 +17,20 @@ Gateway의 기존 `/api/members/**` 라우트로 GET·POST 모두 Member에 전�
 
 ## 1. 저장 구조와 FIFO
 
-`member.users.chat_history JSONB NOT NULL DEFAULT '[]'`에 **사용자 질문과 챗봇 응답을 함께** 저장합니다. 배열 원소는 `{ role, content, spokenAt }` 객체입니다. 취향 요약 전용 저장소가 아니라 실제 메시지 기록입니다.
+`member.chat_message`(users 1:N)에 **사용자 질문과 챗봇 응답을 함께** 메시지 1개당 1행(`role`, `content`, `spoken_at`)으로 저장합니다. 취향 요약 전용 저장소가 아니라 실제 메시지 기록입니다.
 
 | 규칙 | 구현 |
 | --- | --- |
 | 보관 상한 | 질문·응답 합쳐 **50개 메시지**. 완전한 왕복 대화만 저장했다면 최대 25턴 |
-| FIFO | 새 메시지를 배열 뒤에 추가하고, 50개를 넘은 만큼 앞에서 제거. **저장 순서** 기준이며 `spokenAt`으로 재정렬하지 않음 |
+| FIFO | 새 메시지를 INSERT하고 같은 트랜잭션에서 최근 50개를 뺀 나머지를 **DELETE** (조회만 거르지 않고 실제 삭제). **저장 순서(`id`)** 기준이며 `spokenAt`으로 재정렬하지 않음 |
 | 본문 길이 | `content` 최대 **200 Unicode 코드 포인트**. 한글·일반 이모지 하나는 1개, 결합된 이모지는 여러 코드 포인트일 수 있음 |
 | 화자 | `USER` 또는 `ASSISTANT`만. `SYSTEM`·도구 메시지는 받지 않음 |
-| 발화 시각 | 챗봇 호출자가 `spokenAt`으로 실제 발화 시각 전달. **ISO-8601 오프셋 필수** (`+09:00` 또는 `Z`), 저장 시각으로 덮어쓰지 않음 |
+| 발화 시각 | 챗봇 호출자가 `spokenAt`으로 실제 발화 시각 전달. **ISO-8601 오프셋 필수** (`+09:00` 또는 `Z`), 저장 시각으로 덮어쓰지 않음. DB(`TIMESTAMPTZ`)는 시각만 저장하므로 응답은 같은 시각을 **`+09:00`으로** 돌려줌 (`Z`로 보내도 `+09:00`) |
 | 저장소 | **Redis를 사용하지 않고 PostgreSQL을 매번 조회·수정**. 별도 캐시·TTL 없음 |
-| 초기값 | 기존·신규 회원 모두 빈 배열 `[]` |
-| 동시 저장 | 해당 회원 행을 `SELECT ... FOR UPDATE`로 잠근 뒤 읽기→추가→50개 유지→저장을 같은 트랜잭션에서 실행 |
+| 초기값 | 기록이 없으면 빈 목록 `[]` |
+| 동시 저장 | 해당 회원 행을 `SELECT ... FOR NO KEY UPDATE`로 잠근 뒤 추가→50개 정리→조회를 같은 트랜잭션에서 실행. 회원 행은 수정하지 않음 |
 
-회원 엔티티의 일반 프로필 조회에 대화 전체를 싣지 않도록 [ChatHistoryRepository](../src/main/java/com/indie/member/domain/user/repository/ChatHistoryRepository.java)가 이 컬럼만 직접 접근합니다. 기존 프로필 수정도 대화 컬럼을 덮어쓰지 않습니다. DB 제약으로 JSON 배열·최대 50개도 보장합니다([V11](../src/main/resources/db/migration/V11__chat_history.sql)).
+대화는 users와 별도 테이블이라 프로필 조회·수정과 섞이지 않습니다. [ChatHistoryRepository](../src/main/java/com/indie/member/domain/user/repository/ChatHistoryRepository.java)가 `chat_message`에 접근합니다(JPA · QueryDSL). 화자·본문 길이는 DB 제약으로도 검사하고, 50개 상한은 저장할 때마다 서비스가 삭제로 유지합니다. 회원이 탈퇴(행 삭제)하면 대화도 함께 삭제됩니다(`ON DELETE CASCADE`).
 
 ## 2. 저장·조회 API 2개
 
@@ -93,14 +93,13 @@ Base URL = `http://gateway.indie.svc.cluster.local:8080` (로컬 `http://localho
 1. 챗봇은 원 요청의 **사용자 쿠키**를 Gateway로 전달합니다. POST에는 동일한 `XSRF-TOKEN` 쿠키와 `X-XSRF-TOKEN` 헤더도 전달합니다.
 2. Gateway는 클라이언트가 보낸 `X-User-Id`를 제거하고 인증 결과로 다시 설정합니다. Member에는 Gateway Pod만 접근하도록 NetworkPolicy가 제한합니다.
 3. Member는 **`@CurrentUser`의 ID만** 조회·수정 조건으로 사용합니다. 경로·본문의 `userId`·`memberId`로 저장 대상을 바꾸지 않습니다.
-4. 두 API 모두 DB에서 회원 존재와 **`ACTIVE` 상태**를 검사합니다. 탈퇴 회원은 저장된 대화도 읽을 수 없습니다.
+4. 두 API 모두 DB에서 회원이 있는지 검사합니다. 탈퇴는 회원 행 삭제(hard delete)라, 탈퇴한 회원은 대화가 남아 있지 않고 404입니다.
 
 | HTTP | 코드 | 처리 |
 | --- | --- | --- |
 | 401 | 인증 오류 / Member `UNAUTHENTICATED` | 인증되지 않은 요청 거부 |
 | 403 | `CSRF_COOKIE_MISSING`, `CSRF_HEADER_MISSING`, `CSRF_MISMATCH` | POST의 쿠키·헤더 확인 (Gateway) |
-| 404 | `NOT_FOUND` | 해당 회원이 DB에 없음 |
-| 409 | `ACCOUNT_WITHDRAWN` | 탈퇴 회원 조회·추가 거부 |
+| 404 | `NOT_FOUND` | 해당 회원이 DB에 없음 (탈퇴 포함 — v2에서 409 `ACCOUNT_WITHDRAWN`은 없어졌습니다) |
 | 400 | `INVALID_REQUEST` | 배치·메시지 입력 수정 |
 
 사용자 ID를 알기만 해서는 다른 회원의 대화를 읽거나 저장할 수 없습니다. 이 API는 **사용자 본인 권한**으로 호출하는 경로이며, 별도의 챗봇 서비스 계정 권한을 부여하지 않습니다.
@@ -123,7 +122,7 @@ Docker가 실행 중인 Java 21 환경에서 다음을 실행합니다. DB 통�
 ./gradlew test --tests '*ChatHistory*'
 ```
 
-[PostgreSQL 통합 테스트](../src/test/java/com/indie/member/domain/user/service/ChatHistoryServiceTest.java)는 기본값·DB 왕복, FIFO, 회원 격리, 탈퇴 회원 차단, 동시 저장을 검증합니다.
+[PostgreSQL 통합 테스트](../src/test/java/com/indie/member/domain/user/service/ChatHistoryServiceTest.java)는 기본값·DB 왕복, FIFO·실제 행 삭제, 발화 시각 변환, 회원 격리, 탈퇴 시 CASCADE 삭제와 404, 동시 저장을 검증합니다.
 [Gateway 회귀 테스트](https://github.com/SW-Team07-2026-2/gateway/blob/main/src/test/java/com/indie/gateway/global/config/ChatHistoryGatewayTest.java)는 라우팅·인증·신뢰 헤더·CSRF·Host 조건을 검증합니다.
 
-Member 배포 시 Flyway V11이 컬럼과 최대 50개 배열 제약을 추가합니다. 배포 후 Member readiness와 Flyway 성공 로그, 인증된 사용자로 GET·POST 응답을 확인합니다. 기존 챗봇 도구의 실제 API 연결은 챗봇 서비스에서 적용해야 합니다.
+Member 배포 시 Flyway V13이 `users.chat_history` 컬럼을 지우고 `chat_message` 테이블과 인덱스를 만듭니다 (V11의 JSONB 값은 옮기지 않습니다 — 운영에 실데이터 없음). 배포 후 Member readiness와 Flyway 성공 로그, 인증된 사용자로 GET·POST 응답을 확인합니다. 기존 챗봇 도구의 실제 API 연결은 챗봇 서비스에서 적용해야 합니다.

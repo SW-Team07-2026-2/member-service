@@ -7,10 +7,10 @@ import org.springframework.stereotype.Component;
 @Component
 public class PageSize {
 
-    private final MemberProperties.Feed props;
+    private final MemberProperties.Paging props;
 
     public PageSize(MemberProperties props) {
-        this.props = props.feed();
+        this.props = props.paging();
     }
 
     public int resolve(Integer requested) {

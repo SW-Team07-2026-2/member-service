@@ -9,17 +9,16 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
-import java.util.Arrays;
-import java.util.List;
-
-/** member.users — @Table(schema) 를 쓰지 않습니다 (default_schema: member 한 곳에서 지정) */
+/**
+ * member.users — @Table(schema) 를 쓰지 않습니다 (default_schema: member 한 곳에서 지정).
+ * 탈퇴는 행 삭제(hard delete)라 상태 컬럼이 없고, 이 서비스의 회원은 모두 USER 라 역할 컬럼도 없습니다.
+ * embedding(회원 벡터)은 여기 매핑하지 않습니다 — 로그인 · 프로필 조회마다 읽지 않도록 UserEmbeddingEntity 로만 다룹니다.
+ */
 @Entity
 @Table(name = "users")
 public class UserEntity extends BaseEntity {
 
     public enum Provider { KAKAO, GOOGLE }
-
-    public enum Status { ACTIVE, WITHDRAWN }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -36,17 +35,7 @@ public class UserEntity extends BaseEntity {
 
     private String profileImageUrl;
 
-    private String roles;                              // "USER" · "USER,ADMIN"
-
-    @Enumerated(EnumType.STRING)
-    private Status status;
-
     protected UserEntity() {}
-
-    /** AT roles 클레임의 원본 */
-    public List<String> roleList() {
-        return Arrays.stream(roles.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList();
-    }
 
     public void changeNickname(String nickname) {
         this.nickname = nickname;
@@ -63,8 +52,6 @@ public class UserEntity extends BaseEntity {
     public Long getId() { return id; }
     public String getEmail() { return email; }
     public Provider getProvider() { return provider; }
-    public String getProviderUid() { return providerUid; }
     public String getNickname() { return nickname; }
     public String getProfileImageUrl() { return profileImageUrl; }
-    public Status getStatus() { return status; }
 }

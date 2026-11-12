@@ -19,5 +19,4 @@ public abstract class BaseEntity {
     private OffsetDateTime updatedAt;
 
     public OffsetDateTime getCreatedAt() { return createdAt; }
-    public OffsetDateTime getUpdatedAt() { return updatedAt; }
 }

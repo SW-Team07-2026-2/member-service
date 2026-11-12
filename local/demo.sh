@@ -36,7 +36,7 @@ agree()   { curl -s "$G/api/members/terms" | python3 -c 'import json,sys;print(j
 login()   {   # login <쿠키파일> <닉네임> → "코드<TAB>본문" — 처음이면 OAuth 콜백처럼 사인업 토큰만 받으므로 가입(POST /api/auth/signup)까지
   local r; r=$(call "$1" GET "/dev/login?nickname=$(urlenc "$2")")
   if [[ "$(field "${r#*$'\t'}" newUser)" == True ]]; then
-    r=$(call "$1" POST /api/auth/signup -H "X-XSRF-TOKEN: $(xsrf "$1")" -H "$J" -d "{\"artistIds\":[],\"agreements\":$(agree)}")
+    r=$(call "$1" POST /api/auth/signup -H "X-XSRF-TOKEN: $(xsrf "$1")" -H "$J" -d "{\"artistIds\":[$SIGNUP_ARTIST],\"agreements\":$(agree)}")
   fi
   printf '%s' "$r"
 }
@@ -46,7 +46,6 @@ publish() {   # publish <토픽> <JSON>
     /opt/kafka/bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic "$1" >/dev/null 2>&1
 }
 now()  { python3 -c 'import datetime;print(datetime.datetime.now(datetime.timezone.utc).isoformat())'; }
-ago()  { python3 -c 'import datetime;print((datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(days=1)).isoformat())'; }
 uuid() { uuidgen | tr 'A-Z' 'a-z'; }
 wait_for() {  # wait_for <쿠키파일> <경로> <본문에 들어 있어야 할 문자열> — 컨슈머 반영 대기 (최대 10초)
   for _ in $(seq 1 20); do
@@ -105,6 +104,7 @@ PY
 S=$(printf '%05d' $((RANDOM % 100000)))
 NICK="데모$S"                                              # 7자 (닉네임 2~10자)
 ARTIST=$((RANDOM % 9000 + 1000))
+SIGNUP_ARTIST=$((ARTIST + 1))                               # 가입 때 고르는 아티스트 (최소 1개 필수) — 5단계 팔로우 검사와 겹치지 않게 다른 ID
 
 # 사전 확인 — 하나라도 안 떠 있으면 모든 확인이 HTTP 000 으로 실패하므로 여기서 멈춥니다
 MISSING=()
@@ -139,9 +139,9 @@ r=$(call "$JAR" GET "/dev/login?nickname=$(urlenc "$NICK")")
 check "처음 로그인 → 사인업 토큰만 (SIGNUP 쿠키 · AT 없음)" "True 1 0" \
   "$(field "${r#*$'\t'}" newUser) $(cookie "$JAR" SIGNUP | grep -c .) $(cookie "$JAR" AT | grep -c .)"
 check "가입 전 /api/members/me → 401 (아직 회원 아님)" 401 "$(code -b "$JAR" $G/api/members/me)"
-r=$(call "$JAR" POST /api/auth/signup -H "X-XSRF-TOKEN: $(xsrf "$JAR")" -H "$J" -d '{"artistIds":[]}')
+r=$(call "$JAR" POST /api/auth/signup -H "X-XSRF-TOKEN: $(xsrf "$JAR")" -H "$J" -d "{\"artistIds\":[$SIGNUP_ARTIST]}")
 check "약관 동의 없이 가입 → 400 (사인업 토큰은 그대로)" "400 REQUIRED_AGREEMENT_MISSING" "${r%%$'\t'*} $(field "${r#*$'\t'}" code)"
-r=$(call "$JAR" POST /api/auth/signup -H "X-XSRF-TOKEN: $(xsrf "$JAR")" -H "$J" -d "{\"artistIds\":[],\"agreements\":$(agree)}")
+r=$(call "$JAR" POST /api/auth/signup -H "X-XSRF-TOKEN: $(xsrf "$JAR")" -H "$J" -d "{\"artistIds\":[$SIGNUP_ARTIST],\"agreements\":$(agree)}")
 check "POST /api/auth/signup → 가입 · newUser=True" "200 True" "${r%%$'\t'*} $(field "${r#*$'\t'}" newUser)" "${r#*$'\t'}"
 printf '    쿠키: %s\n' "$(awk '!/^# / && NF>=7 {printf "%s ", $6}' "$JAR")"
 X=$(xsrf "$JAR"); USER_ID=$(field "${r#*$'\t'}" userId)
@@ -181,30 +181,30 @@ check "[M-17] 팔로우 2회 → 행 1개 · followed_at 그대로" "1 $F1" \
   "$(psql "SELECT count(*) || ' ' || max(followed_at)::text FROM member.follow WHERE user_id = $USER_ID AND artist_id = $ARTIST")"
 r=$(call "$JAR" GET /api/members/me); check "GET /api/members/me" 200 "${r%%$'\t'*}" "${r#*$'\t'}"
 
-step "6. Catalog 가 album.released 발행 → Member 컨슈머 → 피드 (Kafka)"
+step "6. Catalog 가 album.released 발행 → Member 컨슈머 → 팔로워의 알림함 (Kafka)"
 ALBUM="{\"eventId\":\"$(uuid)\",\"type\":\"album.released\",\"version\":1,\"occurredAt\":\"$(now)\",\"payload\":{\"albumId\":101,\"artistId\":$ARTIST,\"artistName\":\"새소년\",\"title\":\"비적응\",\"type\":\"EP\"}}"
 publish album.released "$ALBUM"
-wait_for "$JAR" /api/members/feed "비적응"; r=$(call "$JAR" GET /api/members/feed); check "GET /api/members/feed" 200 "${r%%$'\t'*}" "${r#*$'\t'}"
+wait_for "$JAR" /api/members/notifications "비적응"; r=$(call "$JAR" GET /api/members/notifications); check "GET /api/members/notifications" 200 "${r%%$'\t'*}" "${r#*$'\t'}"
 publish album.released "$ALBUM"   # 같은 eventId 재전송 — at-least-once 재현
-sleep 2; r=$(call "$JAR" GET /api/members/feed)
-check "[M-11] 같은 eventId 2회 소비 → 피드 1건" 1 "$(grep -o '"ALBUM_RELEASED"' <<<"${r#*$'\t'}" | wc -l | tr -d ' ')"
-PAST="{\"eventId\":\"$(uuid)\",\"type\":\"album.released\",\"version\":1,\"occurredAt\":\"$(ago)\",\"payload\":{\"albumId\":102,\"artistId\":$ARTIST,\"artistName\":\"새소년\",\"title\":\"어제앨범\",\"type\":\"EP\"}}"
+sleep 2; r=$(call "$JAR" GET /api/members/notifications)
+check "[M-11] 같은 eventId 2회 소비 → 알림 1건" 1 "$(grep -o '"EP_RELEASED"' <<<"${r#*$'\t'}" | wc -l | tr -d ' ')"
+OTHER="{\"eventId\":\"$(uuid)\",\"type\":\"album.released\",\"version\":1,\"occurredAt\":\"$(now)\",\"payload\":{\"albumId\":102,\"artistId\":$((ARTIST + 100000)),\"artistName\":\"모르는밴드\",\"title\":\"남의앨범\",\"type\":\"EP\"}}"   # 팔로우하지 않은 아티스트
 NEXT="{\"eventId\":\"$(uuid)\",\"type\":\"album.released\",\"version\":1,\"occurredAt\":\"$(now)\",\"payload\":{\"albumId\":103,\"artistId\":$ARTIST,\"artistName\":\"새소년\",\"title\":\"다음앨범\",\"type\":\"EP\"}}"
-publish album.released "$PAST"
+publish album.released "$OTHER"
 publish album.released "not-json-$S{"                    # 역직렬화 불가 (poison pill)
 publish album.released "$NEXT"
-wait_for "$JAR" /api/members/feed "다음앨범"; r=$(call "$JAR" GET /api/members/feed)
+wait_for "$JAR" /api/members/notifications "다음앨범"; r=$(call "$JAR" GET /api/members/notifications)
 check "[M-12] 깨진 메시지 뒤의 정상 메시지도 처리 (파티션이 멈추지 않음)" True "$([[ "${r#*$'\t'}" == *다음앨범* ]] && echo True || echo False)"
 check "[M-12] 깨진 메시지는 album.released.DLT 로" 1 "$($DC exec -T kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 \
   --topic album.released.DLT --from-beginning --timeout-ms 4000 2>/dev/null | grep -c "not-json-$S")"
-check "[M-13] 팔로우 전(어제)에 일어난 활동은 피드에 없음" False "$([[ "${r#*$'\t'}" == *어제앨범* ]] && echo True || echo False)"
+check "[M-13] 팔로우하지 않은 아티스트의 소식은 알림에 없음" False "$([[ "${r#*$'\t'}" == *남의앨범* ]] && echo True || echo False)"
 
-step "7. 알림 배지 → 읽음 처리 → 0"
+step "7. 알림 배지 → 전체 읽음 → 0"
 r=$(call "$JAR" GET /api/members/notifications/badge); check "배지" 200 "${r%%$'\t'*}" "${r#*$'\t'}"
-r=$(call "$JAR" POST /api/members/notifications/read -H "X-XSRF-TOKEN: $X"); check "읽음 처리" 200 "${r%%$'\t'*}"
+r=$(call "$JAR" POST /api/members/notifications/read -H "X-XSRF-TOKEN: $X"); check "전체 읽음" 200 "${r%%$'\t'*}"
 r=$(call "$JAR" GET /api/members/notifications/badge); check "배지 (읽은 뒤)" 200 "${r%%$'\t'*}" "${r#*$'\t'}"
 
-step "8. Concert 가 booking.completed 발행 → 본인 전용 알림 (팔로워 피드에는 안 보임)"
+step "8. Concert 가 booking.completed 발행 → 본인 전용 알림 (팔로워에게는 가지 않음)"
 publish booking.completed "{\"eventId\":\"$(uuid)\",\"type\":\"booking.completed\",\"version\":1,\"occurredAt\":\"$(now)\",\"payload\":{\"bookingId\":55,\"concertId\":9,\"userId\":$USER_ID,\"title\":\"새소년 단독 공연\"}}"
 wait_for "$JAR" /api/members/notifications "BOOKING_DONE"
 r=$(call "$JAR" GET /api/members/notifications); check "GET /api/members/notifications" 200 "${r%%$'\t'*}" "${r#*$'\t'}"
@@ -226,11 +226,11 @@ check "[GW-9] 웹훅 POST 는 CSRF 헤더 없이도 403 아님 (Payment 미기�
 H=$(curl -s -D - -o /dev/null $G/api/auth/me | tr -d '\r')
 check "[GW-16] 응답 헤더 HSTS · nosniff · DENY 있음 · Server 없음" "1 1 1 0" \
   "$(for h in '^strict-transport-security:' '^x-content-type-options: nosniff' '^x-frame-options: deny' '^server:'; do grep -ci "$h" <<<"$H"; done | tr '\n' ' ' | sed 's/ $//')"
-CODES=$(for i in 1 2 3 4 5 6; do code -b "$JAR" $G/api/assistant/suggestions; printf ' '; done)
-check "[GW-14] /api/assistant 6회 연속 → 6번째 429 (사용자당 분당 5회)" 429 "$(awk '{print $6}' <<<"$CODES")" "응답 코드: $CODES"
+CODES=$(for i in 1 2 3 4 5 6; do code -b "$JAR" $G/api/chatbot/suggestions; printf ' '; done)
+check "[GW-14] /api/chatbot 6회 연속 → 6번째 429 (사용자당 분당 5회)" 429 "$(awk '{print $6}' <<<"$CODES")" "응답 코드: $CODES"
 r=$(call "$JAR" GET '/api/catalog/search?q=hyukoh'); check "Catalog 미기동 → 검색은 degraded 200 (서킷 브레이커 폴백)" 200 "${r%%$'\t'*}" "${r#*$'\t'}"
 login "$JARB" "데모B$S" >/dev/null; XB=$(xsrf "$JARB")
-BODY='{"albumId":101}'
+BODY='{"physicalAlbumId":101,"optionId":1001}'
 r=$(call "$JAR" POST /api/members/collections -H "X-XSRF-TOKEN: $X" -H "$J" -d "$BODY"); CID=$(field "${r#*$'\t'}" id)
 r=$(call "$JARB" GET /api/members/collections/$CID); check "[M-16] 다른 사용자의 컬렉션 id 로 조회 → 404 (403 아님)" 404 "${r%%$'\t'*}" "${r#*$'\t'}"
 
@@ -243,14 +243,14 @@ check "[M-3] aud: catalog 인 내부 토큰" 401 "$(code -X POST -H "$J" -H "X-I
 IT=$(itoken member)
 ST=$(curl -s -X POST -H "$J" -H "X-Internal-Token: $IT" -d "$ISSUE" $M/internal/auth/issue | python3 -c 'import json,sys;print(json.load(sys.stdin)["result"]["signupToken"])')
 check "[M-5] 처음 issue → users 행 0개 (가입은 사인업 토큰으로)" 0 "$(psql "SELECT count(*) FROM member.users WHERE provider_uid = 'dod-$S'")"
-SIGNUP="{\"signupToken\":\"$ST\",\"artistIds\":[],\"agreements\":$(agree)}"
+SIGNUP="{\"signupToken\":\"$ST\",\"artistIds\":[$SIGNUP_ARTIST],\"agreements\":$(agree)}"
 for i in 1 2 3 4 5 6 7 8 9 10; do code -X POST -H "$J" -H "X-Internal-Token: $IT" -d "$SIGNUP" $M/internal/auth/signup > "$WORK/signup-$i" & done; wait
 check "[M-5] 같은 사인업 토큰으로 가입 10건 동시 → 성공 1 · users 행 1개" "1 1" \
   "$(cat "$WORK"/signup-* | grep -o 200 | wc -l | tr -d ' ') $(psql "SELECT count(*) FROM member.users WHERE provider_uid = 'dod-$S'")"
 
 check "[M-18] member_svc 로 catalog 스키마 조회 → 권한 없음" "permission denied for schema catalog" \
   "$($DC exec -T postgres psql 'postgresql://member_svc:localdev@localhost/indie_db' -tAc 'SELECT 1 FROM catalog.artist LIMIT 1' 2>&1 | grep -o 'permission denied for schema catalog' | head -1)"
-check "[M-22] Flyway V1~V9 성공" "1 2 3 4 5 6 7 8 9" "$(psql "SELECT string_agg(version, ' ' ORDER BY installed_rank) FROM member.flyway_schema_history WHERE success")"
+check "[M-22] Flyway V1~V14 성공" "1 2 3 4 5 6 7 8 9 10 11 12 13 14" "$(psql "SELECT string_agg(version, ' ' ORDER BY installed_rank) FROM member.flyway_schema_history WHERE success")"
 n=$(psql "SELECT count(*) FROM pg_stat_activity WHERE usename = 'member_svc'")
 check "[M-24] member_svc DB 커넥션 10 이하" true "$([[ $n -le 10 ]] && echo true || echo false)" "현재 ${n}개 (풀 5)"
 
@@ -293,7 +293,7 @@ printf '\n\033[1m결과: %d 통과 · %d 실패\033[0m\n' "$PASS" "$FAIL"
 cat <<'NOTE'
   로컬에서 다루지 않는 완료 조건 — 단위 테스트(./gradlew test) 또는 배포 환경에서 확인합니다
     Gateway  15 kid 교체 · 17 lb:// 분산 · 18 실제 카카오 로그인 · 19 쿠키 Domain · 20 Member 다운 시 stale · 22~26 배포
-    Member   14 피드 커서 · 15 배지 상한 · 20 Outbox 롤백 · 21 · 23 · 25~29 · 31 배포
+    Member   15 배지 상한 · 20 Outbox 롤백 · 21 · 23 · 25~29 · 31 배포
 NOTE
 rm -rf "$WORK"
 [[ $FAIL -eq 0 ]]

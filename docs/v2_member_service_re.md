@@ -682,6 +682,7 @@ AI는 member의 `/internal/**`를 직접 부를 수 없습니다(member는 Gatew
 | album.released | 구독 | 유지. albumType으로 ALBUM, EP, SINGLE 구분 |
 | stock.restocked | 구독 | **구독 해제** (재입고 알림 없음) |
 | concert.created | 구독 | 유지. CONCERT_ANNOUNCED, 라인업 artistIds |
+| concert.lineup_updated | 구독 | 신규. CONCERT_ANNOUNCED, 새로 추가된 아티스트(addedArtistIds)의 팔로워에게만 |
 | booking.completed | 구독 | 유지. BOOKING_DONE |
 | payment.completed | 구독 | **구독 해제** (콜렉션 자동 추가는 catalog 주문 확정으로) |
 | (신규) 피지컬 앨범·굿즈 발매, 주문 확정·환불, 예매 취소 | 구독 | 토픽 이름은 catalog·concert와 정함 (8장) |
@@ -734,6 +735,7 @@ AI는 member의 `/internal/**`를 직접 부를 수 없습니다(member는 Gatew
 
 - 페스티벌 라인업을 위해 `concert_artist(concert_id, artist_id, billing_order)` N:M 테이블이 필요합니다.
 - `concert.created` payload: concertId, title, type(SOLO·FESTIVAL), startsAt, venueName, **artistIds(라인업 순서대로)**
+- `concert.lineup_updated` payload: concertId, title, startsAt, venueName, artistIds(바뀐 뒤 라인업 전체), **addedArtistIds(새로 추가된 아티스트)**. 아티스트가 추가될 때만 발행합니다. 알림 문장은 「펜타포트 2027 라인업 추가 · 8/1(일) 17:00 · 송도달빛축제공원」입니다.
 - 예매 이벤트(완료·취소) payload: userId, bookingId, concertId, concertTitle, startsAt, venueName, amount(취소면 환불 금액). **예매 취소 이벤트는 새로 필요합니다.**
 - `user.withdrawn` 구독: PENDING 예매와 좌석 점유를 정리합니다. 확정 예매 기록은 남깁니다.
 

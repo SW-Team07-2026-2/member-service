@@ -42,6 +42,9 @@ class NotificationMessagesTest {
     void concertAndBookingShowKoreanTime() {
         assertThat(NotificationMessages.concertAnnounced("펜타포트 2027", "2027-08-01T08:00:00Z", "송도달빛축제공원"))
                 .isEqualTo("펜타포트 2027 공연 등록 · 8/1(일) 17:00 · 송도달빛축제공원");
+        assertThat(NotificationMessages.lineupAdded("펜타포트 2027", "2027-08-01T08:00:00Z", "송도달빛축제공원"))
+                .isEqualTo("펜타포트 2027 라인업 추가 · 8/1(일) 17:00 · 송도달빛축제공원");
+        assertThat(NotificationMessages.lineupAdded("펜타포트 2027", null, null)).isEqualTo("펜타포트 2027 라인업 추가");
         assertThat(NotificationMessages.bookingDone("새소년 단독공연", "2026-12-24T19:00:00+09:00", "무신사 개러지"))
                 .isEqualTo("새소년 단독공연 예매 완료 · 12/24(목) 19:00 · 무신사 개러지");
         assertThat(NotificationMessages.bookingDone(null, null, null)).isEqualTo("공연 예매 완료");

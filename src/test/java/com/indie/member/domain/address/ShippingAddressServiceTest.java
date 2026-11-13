@@ -27,7 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Flyway V5 스키마 위에서 배송지 규칙 — 기본 1개 · 10개 제한 · 남의 배송지. Docker 가 없으면 건너뜁니다.
+ * Flyway 스키마 위에서 배송지 규칙 — 기본 1개 · 10개 제한 · 남의 배송지. Docker 가 없으면 건너뜁니다.
  * 테스트 트랜잭션을 끄고 서비스 호출마다 커밋합니다 — 요청마다 영속성 컨텍스트가 새로 시작되는 운영과 같게
  */
 @Testcontainers(disabledWithoutDocker = true)

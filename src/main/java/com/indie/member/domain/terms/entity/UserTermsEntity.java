@@ -10,7 +10,7 @@ import jakarta.persistence.Table;
 
 import java.time.OffsetDateTime;
 
-/** user_terms — 회원 ─< 동의 이력 >─ 약관 (V8). INSERT 만 · 현재 상태는 약관 코드마다 마지막 행 */
+/** user_terms — 회원 ─< 동의 이력 >─ 약관. INSERT 만 · 현재 상태는 약관 코드마다 마지막 행 */
 @Entity
 @Table(name = "user_terms")
 public class UserTermsEntity {

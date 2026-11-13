@@ -11,7 +11,7 @@ import jakarta.persistence.Table;
 
 import java.time.OffsetDateTime;
 
-/** terms — 약관 원문 · 버전 (V8). 운영은 마이그레이션으로만 들어오고 바뀌지 않습니다 — 새 버전은 새 행 (of 는 테스트 픽스처) */
+/** terms — 약관 원문 · 버전. 운영은 마이그레이션으로만 들어오고 바뀌지 않습니다 — 새 버전은 새 행 (of 는 테스트 픽스처) */
 @Entity
 @Table(name = "terms")
 public class TermsEntity {

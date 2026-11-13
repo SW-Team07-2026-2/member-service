@@ -98,6 +98,14 @@ public class UserService {
         return userRepository.findById(userId).orElseThrow(() -> new GeneralException(CommonErrorCode.NOT_FOUND));
     }
 
+    /** 관리자(Studio CS) 회원 검색 — 숫자면 회원 번호로도 찾습니다 */
+    @Transactional(readOnly = true)
+    public List<UserEntity> searchForAdmin(String q, int limit) {
+        Long id = q.matches("\\d{1,18}") ? Long.valueOf(q) : null;
+        String like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+        return userRepository.searchForAdmin(id, q, like, limit);
+    }
+
     /** RT 회전처럼 "없을 수 있는" 경로용 — 탈퇴한 회원이면 빈 값 */
     @Transactional(readOnly = true)
     public Optional<UserEntity> find(long userId) {

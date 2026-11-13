@@ -250,7 +250,7 @@ check "[M-5] 같은 사인업 토큰으로 가입 10건 동시 → 성공 1 · u
 
 check "[M-18] member_svc 로 catalog 스키마 조회 → 권한 없음" "permission denied for schema catalog" \
   "$($DC exec -T postgres psql 'postgresql://member_svc:localdev@localhost/indie_db' -tAc 'SELECT 1 FROM catalog.artist LIMIT 1' 2>&1 | grep -o 'permission denied for schema catalog' | head -1)"
-check "[M-22] Flyway V1~V14 성공" "1 2 3 4 5 6 7 8 9 10 11 12 13 14" "$(psql "SELECT string_agg(version, ' ' ORDER BY installed_rank) FROM member.flyway_schema_history WHERE success")"
+check "[M-22] Flyway V1 · V2 성공" "1 2" "$(psql "SELECT string_agg(version, ' ' ORDER BY installed_rank) FROM member.flyway_schema_history WHERE success")"
 n=$(psql "SELECT count(*) FROM pg_stat_activity WHERE usename = 'member_svc'")
 check "[M-24] member_svc DB 커넥션 10 이하" true "$([[ $n -le 10 ]] && echo true || echo false)" "현재 ${n}개 (풀 5)"
 

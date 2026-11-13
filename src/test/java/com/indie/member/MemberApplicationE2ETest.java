@@ -48,7 +48,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
 /**
- * 애플리케이션 전체(빈 연결 · 필터 · JSON 설정 · Flyway V1~V14)를 띄워 v2 흐름을 한 번 끝까지 따라갑니다
+ * 애플리케이션 전체(빈 연결 · 필터 · JSON 설정 · Flyway V1 · V2)를 띄워 v2 흐름을 한 번 끝까지 따라갑니다
  * (docs/v2_member_service_re.md). PostgreSQL · Redis 는 Testcontainers, Kafka 는 띄우지 않습니다 —
  * 리스너를 끄고 컨슈머 메서드를 직접 부릅니다. Docker 가 없으면 건너뜁니다.
  * <pre>

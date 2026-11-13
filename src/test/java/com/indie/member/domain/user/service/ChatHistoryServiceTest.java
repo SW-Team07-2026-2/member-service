@@ -33,7 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 실제 PostgreSQL · Flyway(V13 chat_message) 위에서 FIFO · 회원 격리 · 동시 추가 · 탈퇴 CASCADE 검증. Docker 가 없으면 건너뜁니다.
+ * 실제 PostgreSQL · Flyway 스키마(chat_message) 위에서 FIFO · 회원 격리 · 동시 추가 · 탈퇴 CASCADE 검증. Docker 가 없으면 건너뜁니다.
  * 테스트 트랜잭션을 끄고 서비스 호출마다 커밋합니다 — 동시 저장을 실제 트랜잭션으로 겨루게 합니다
  */
 @Testcontainers(disabledWithoutDocker = true)

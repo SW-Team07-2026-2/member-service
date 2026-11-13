@@ -9,7 +9,7 @@ public record MemberProperties(Token token, Internal internal, Paging paging, Ou
 
     public record Token(long atTtlSeconds, long rtTtlSeconds, String issuer, String activeKid, String previousKid) {}
 
-    public record Internal(String expectedAudience, List<String> allowedIssuers, long clockSkewSeconds) {}
+    public record Internal(String expectedAudience, List<String> allowedIssuers, List<String> adminIssuers, long clockSkewSeconds) {}
 
     public record Paging(int pageSize, int maxPageSize) {}
 

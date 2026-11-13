@@ -10,6 +10,7 @@ import com.indie.member.domain.terms.entity.TermsCode;
 import com.indie.member.domain.terms.repository.TermsRepositoryAdapter;
 import com.indie.member.domain.terms.repository.UserTermsRepositoryAdapter;
 import com.indie.member.domain.terms.service.TermsService;
+import com.indie.member.domain.user.dto.response.AdminMemberResponse;
 import com.indie.member.domain.user.dto.response.EmbeddingSaved;
 import com.indie.member.domain.user.entity.UserEntity;
 import com.indie.member.global.common.exception.GeneralException;
@@ -43,7 +44,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 /**
- * Flyway V8 · V9 (약관 · 동의 이력) 스키마 위에서 가입 — 회원 · 팔로우 · 동의 이력이 한 번에, 두 번째 가입은 기존 회원으로. Docker 가 없으면 건너뜁니다.
+ * Flyway 스키마(약관 · 동의 이력) 위에서 가입 — 회원 · 팔로우 · 동의 이력이 한 번에, 두 번째 가입은 기존 회원으로. Docker 가 없으면 건너뜁니다.
  * 테스트 트랜잭션을 끄고 서비스 호출마다 커밋합니다 — 요청마다 영속성 컨텍스트가 새로 시작되는 운영과 같게
  */
 @Testcontainers(disabledWithoutDocker = true)
@@ -93,6 +94,24 @@ class UserServiceRegisterTest {
                 tuple(TermsCode.AGE14, true), tuple(TermsCode.TOS, true), tuple(TermsCode.PRIVACY, true), tuple(TermsCode.MARKETING, false));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM outbox WHERE (payload->>'userId')::bigint = ? AND payload->>'type' = 'FOLLOW'",
                 Long.class, userId)).isEqualTo(2);
+    }
+
+    /** 관리자(Studio CS) 검색 — 회원 번호 · 이메일 · 닉네임 일부. % 는 글자 그대로 찾고, 목록의 이메일은 가립니다 */
+    @Test
+    void adminSearchFindsByIdEmailOrNicknamePart() {
+        String tag = UUID.randomUUID().toString().substring(0, 8);
+        long id = jdbc.queryForObject("INSERT INTO users (provider, provider_uid, email, nickname) VALUES ('KAKAO', ?, ?, ?) RETURNING id",
+                Long.class, UUID.randomUUID().toString(), tag + "@Example.com", "검색_" + tag);
+
+        assertThat(service.searchForAdmin(String.valueOf(id), 20)).extracting(UserEntity::getId).contains(id);
+        assertThat(service.searchForAdmin(tag + "@example.COM", 20)).extracting(UserEntity::getId).containsExactly(id);
+        assertThat(service.searchForAdmin("색_" + tag.toUpperCase(), 20)).extracting(UserEntity::getId).containsExactly(id);
+        assertThat(service.searchForAdmin("%", 20)).isEmpty();
+        assertThat(service.searchForAdmin("색x" + tag, 20)).isEmpty();          // _ 가 "아무 한 글자" 로 쓰이지 않습니다
+
+        AdminMemberResponse summary = AdminMemberResponse.summary(service.get(id));
+        assertThat(summary.email()).isEqualTo(tag.substring(0, 2) + "***@Example.com");
+        assertThat(AdminMemberResponse.detail(service.get(id)).email()).isEqualTo(tag + "@Example.com");
     }
 
     /** 탭 두 개로 가입 — 두 번째는 먼저 만든 회원으로 로그인하고 팔로우 · 동의 이력을 다시 쓰지 않습니다 */

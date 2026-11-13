@@ -39,7 +39,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 /**
- * 행동 메트릭 — Flyway V13(user_metric) 위에서 수집(멱등 · 시각 범위) · AI 조회(합계 · 원본 행) · 보관 기간 삭제.
+ * 행동 메트릭 — Flyway 스키마(user_metric) 위에서 수집(멱등 · 시각 범위) · AI 조회(합계 · 원본 행) · 보관 기간 삭제.
  * Docker 가 없으면 건너뜁니다. HQL insert … values … on conflict 가 실제 PostgreSQL 에서 도는지 여기서 확인합니다.
  */
 @Testcontainers(disabledWithoutDocker = true)

@@ -40,7 +40,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 알림 — Flyway V13(user_notification) 위에서 팔로워 복사 · 멱등 · 읽음 · 보관 기간 삭제. Docker 가 없으면 건너뜁니다.
+ * 알림 — Flyway 스키마(user_notification) 위에서 팔로워 복사 · 멱등 · 읽음 · 보관 기간 삭제. Docker 가 없으면 건너뜁니다.
  * HQL insert … select … on conflict 가 실제 PostgreSQL 에서 도는지 여기서 확인합니다.
  */
 @Testcontainers(disabledWithoutDocker = true)

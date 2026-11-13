@@ -41,7 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 팔로우 · 콜렉션 · outbox 의 조회 · 쓰기가 Flyway 스키마(V13) 위에서 맞게 도는지. Docker 가 없으면 건너뜁니다.
+ * 팔로우 · 콜렉션 · outbox 의 조회 · 쓰기가 Flyway 스키마 위에서 맞게 도는지. Docker 가 없으면 건너뜁니다.
  * 픽스처는 시각을 정해 넣어야 해서 JdbcTemplate 로 넣습니다.
  */
 @Testcontainers(disabledWithoutDocker = true)

@@ -2,6 +2,7 @@
 
 > **상태: 구현 완료 · develop 머지(2026-11-13) · main 배포 전.** member와 Gateway 모두 각 저장소의 `refactor/member-v2` 브랜치를 develop에 머지했습니다.
 > member는 2026-11-12에 구현했고(테스트 156건 통과), 2026-11-13에 Gateway 수정(테스트 124건 통과)과 낡은 코드 정리(10.6)를 더했습니다.
+> 2026-11-13(오후): 마이그레이션을 **V1(구조) · V2(값) 두 파일**로 합쳤고(5장), 관리자(Studio CS)용 회원 조회 내부 API를 더했습니다(7장). 브랜치 `refactor/flyway-v1-v2`, 테스트 162건 통과.
 > 이 문서가 member v2의 기준입니다. 구현하면서 설계와 달라진 부분은 본문에 반영했고, 10.5에 따로 모았습니다.
 > 마지막 장(12장)에 아직 정하지 않은 항목과 배포 전에 확인할 항목을 모아 두었습니다.
 
@@ -13,12 +14,12 @@
 - **알림:** Kafka 이벤트를 받는 즉시 팔로워들의 `user_notification`에 복사합니다. 원본 소식 테이블은 두지 않습니다. 읽음은 행마다 처리하고, 3개월 동안 보관합니다.
 - **행동 메트릭:** 프론트가 member 수집 API로 보내고, 6개월 동안 보관합니다. AI는 필터 조회 API로 읽습니다.
 - **장바구니는 catalog로 옮깁니다.** member의 `wishlist`는 삭제합니다.
-- **마이그레이션:** 운영 DB에는 V1~V12가 적용되어 있고 실데이터는 없습니다. 새로 쌓지 않고 **V13(스키마) · V14(약관 v3)**를 이어서 추가했습니다.
+- **마이그레이션:** 파일은 `V1__member_schema.sql`(구조) · `V2__member_values.sql`(값 목록 CHECK · 약관 본문) 두 개입니다. 예전 V1~V14를 합친 것이라, 기존 DB는 `member` 스키마를 비우고 다시 올립니다(5장).
 
 ## 1. 배경과 범위
 
 - indie-msa의 모든 서비스가 테이블을 대대적으로 개편하는 중이고, member가 첫 번째입니다.
-- 운영 상태(2026-11-12 확인): `origin/main`에 V1~V12가 커밋되어 있고, 11/08 main CI가 성공한 뒤 ArgoCD가 배포했습니다. V11은 `users.chat_history` JSONB 버전입니다. 개발 중이라 실데이터가 없으므로 V13에서 데이터를 옮기는 작업은 하지 않습니다.
+- 운영 상태(2026-11-12 확인): `origin/main`에 V1~V12가 커밋되어 있고, 11/08 main CI가 성공한 뒤 ArgoCD가 배포했습니다. V11은 `users.chat_history` JSONB 버전입니다. 개발 중이라 실데이터가 없으므로 데이터를 옮기는 작업은 하지 않습니다. (2026-11-13: V1~V14를 두 파일로 합쳤습니다. 5장)
 - 범위
   - 포함: member 스키마·코드 전체, 다른 서비스와 프론트에 요청할 계약(이벤트·API)
   - 제외: 다른 서비스의 구현(요청 사항만 8장에 정리), 배송 처리 흐름(MVP 제외, 배송지 저장만 유지)
@@ -211,23 +212,19 @@ DB는 `VARCHAR + CHECK`로, 코드는 Java enum(`@Enumerated(STRING)`)으로 둡
 | terms.code | AGE14, TOS, PRIVACY, PRIVACY_POLICY, MARKETING |
 | users.provider | KAKAO, GOOGLE |
 
-## 5. 마이그레이션 내용 (V13 · V14)
+## 5. 마이그레이션 (V1 구조 · V2 값)
 
-실데이터가 없으므로 값을 옮기지 않습니다. PostgreSQL은 DDL도 트랜잭션 안에서 실행되므로, 중간에 실패하면 그 파일 전체가 되돌아갑니다.
-기존 관례(V8 스키마 · V9 약관 본문)대로 스키마와 약관 본문을 두 파일로 나눴습니다.
+파일은 두 개만 둡니다 (2026-11-13 결정 · 모든 서비스 공통). 예전 V1~V14를 합친 것이고, 합치기 전후의 컬럼 · 제약 · 인덱스와 약관 9행(본문 md5)이 같은지 대조했습니다.
 
-**`V13__member_v2_schema.sql`**
+| 파일 | 들어 있는 것 |
+|---|---|
+| `V1__member_schema.sql` | 테이블 10개, PK · FK · UNIQUE, 인덱스, 구조 CHECK 2개(`ck_chat_message_content` · `ck_user_metric_value`) |
+| `V2__member_values.sql` | ① 값 목록 CHECK 4개: `ck_chat_message_role` · `ck_user_notification_type` · `ck_user_metric_target_type` · `ck_user_metric_type` (4장의 enum과 같은 목록) ② 약관 본문 9행: v1(AGE14 · TOS · PRIVACY · MARKETING · PRIVACY_POLICY), v2(PRIVACY · PRIVACY_POLICY), v3(PRIVACY · PRIVACY_POLICY) |
 
-1. 테이블 삭제: `wishlist`, `activity`, `user_notification_state` (각 테이블의 인덱스도 함께 삭제됨)
-2. `users`: `status`, `roles`, `chat_history` 컬럼 삭제(그 컬럼의 CHECK 제약도 함께 삭제). `embedding TEXT`, `embedding_updated_at TIMESTAMPTZ` 추가
-3. `collection`: **기존 행을 지웁니다**(`album_id`만으로는 어느 옵션인지 알 수 없음). `album_id`와 `uq_collection` 삭제. `physical_album_id`, `option_id`(NOT NULL) 추가. `uq_collection_option` UNIQUE(user_id, option_id) 추가
-4. 테이블 생성: `chat_message`, `user_notification`, `user_metric` (3장의 제약·인덱스 포함)
-
-**`V14__terms_privacy_v3.sql`**
-
-5. `terms`: PRIVACY(가입 동의서) v3, PRIVACY_POLICY(개인정보처리방침) v3 행 INSERT (6.9). 기존 행은 수정하지 않습니다(Flyway 체크섬).
-
-V1~V12 파일은 그대로 둡니다. 이미 운영 DB에 적용되어 있어서, 파일을 고치거나 지우면 Flyway 검증(`validate-on-migrate`)이 실패합니다.
+- 약관은 지난 버전까지 모두 넣습니다. 시행일(`effective_at`)이 지난 것 중 가장 최근 버전이 "지금 시행 중"이라, v3(11-21 시행)만 넣으면 그 전까지 시행 중인 약관이 없어 가입이 막힙니다.
+- 값 목록을 넣거나 빼면 V2와 Java enum을 함께 고칩니다. `MemberSchemaValuesTest`가 둘을 대조합니다.
+- 🔴 **적용된 파일을 고치면 Flyway 체크섬 검증에 걸려 서비스가 뜨지 않습니다.** 실데이터가 없는 지금은 파일을 고친 뒤 `member` 스키마를 비우고 다시 올립니다. 실데이터가 생긴 뒤에는 스키마를 비울 수 없으므로 그때부터는 V3 이후 파일을 이어 붙여야 합니다(12장).
+- 기존 DB에 올릴 때: 서비스를 내린 뒤 `DROP SCHEMA member CASCADE` → `terraform/scripts/db-init.sh`(스키마 · 권한 다시 만들기) → 서비스 기동(Flyway가 V1 · V2 적용).
 
 ## 6. 로직과 흐름
 
@@ -458,6 +455,7 @@ on conflict on constraint uq_user_notification_event do nothing
 | GET `/internal/members/{id}/profile` | 응답에서 `roles`, `status` 제거 |
 | GET `/internal/members/{userId}/metrics` | **신규** AI용. AI는 Gateway `GET /ingest/members/{userId}/metrics`로 호출 (HMAC) |
 | GET, PUT `/internal/members/{userId}/embedding` | **신규** AI용. AI는 Gateway `GET`, `PUT /ingest/members/{userId}/embedding`으로 호출 (HMAC) |
+| GET `/internal/admin/members?q=` · GET `/internal/admin/members/{id}` | **신규(11/13)** 관리자(Studio CS)용 회원 검색 · 조회. 내부 토큰의 `iss`가 `studio`일 때만 |
 | GET `/.well-known/jwks.json` | 유지 |
 
 ### API 상세 (신규·변경)
@@ -602,6 +600,22 @@ on conflict on constraint uq_user_notification_event do nothing
 
 에러: 401 `INTERNAL_TOKEN_*`, 400 `INVALID_REQUEST`, 404 `NOT_FOUND`
 
+#### 관리자(Studio)용 회원 조회: `GET /internal/admin/members`, `GET /internal/admin/members/{id}`
+
+Studio의 CS 화면이 부릅니다(Studio 문서 6.6). Gateway를 거치지 않고 Studio가 member를 직접 부릅니다.
+
+| API | 요청 | 응답 |
+|---|---|---|
+| GET `/internal/admin/members?q=&size=` | `q` 필수(1~255자). 회원 번호 일치 · 이메일 일치(대소문자 무시) · 닉네임 부분 일치 | `[{ "userId", "email", "provider", "nickname", "profileImageUrl", "createdAt" }]` 최근 가입순, 기본 20 · 최대 50건. **이메일은 가려서**(`ab***@example.com`) |
+| GET `/internal/admin/members/{id}` | | 같은 모양 1건, 이메일 전체. 없는 회원(탈퇴 포함)은 404 |
+
+- 내주는 것은 본인 확인에 필요한 값뿐입니다. 배송지 · 동의 이력 · 대화 · 행동 기록 · 벡터는 내주지 않습니다.
+- 조회만 있습니다. 회원 정보 수정과 탈퇴는 회원 본인만 합니다.
+- **내부 토큰 발급자는 경로로 나눕니다.** `/internal/admin/**`는 `app.internal.admin-issuers`(`studio`)만, 그 밖의 `/internal/**`는 `allowed-issuers`(`gateway`)만 받습니다. 관리자 토큰으로 토큰 발급(`/internal/auth/**`)을 부를 수 없고, Gateway 토큰으로 관리자 조회를 부를 수 없습니다.
+- 누가 조회했는지는 Studio의 감사 기록에 남습니다(member는 `X-Admin-Id`를 저장하지 않습니다).
+
+에러: 401 `INTERNAL_TOKEN_*`, 400 `INVALID_REQUEST`, 404 `NOT_FOUND`
+
 #### AI가 호출하는 방법 (Gateway 서명 경로)
 
 AI는 member의 `/internal/**`를 직접 부를 수 없습니다(member는 Gateway에서 오는 요청만 받습니다). 아래 Gateway 경로로 부르면 Gateway가 서명을 확인한 뒤 member 내부 API로 넘깁니다. 응답 본문은 member의 응답 그대로입니다.
@@ -743,6 +757,11 @@ AI는 member의 `/internal/**`를 직접 부를 수 없습니다(member는 Gatew
 
 - member는 payment 이벤트를 더 이상 구독하지 않습니다. 알림과 콜렉션은 catalog와 concert 이벤트로 처리합니다.
 
+### Studio (관리자)
+
+- CS 화면의 회원 검색 · 조회는 `GET /internal/admin/members?q=` · `GET /internal/admin/members/{id}`입니다(7장). 내부 토큰은 `{iss: studio, aud: member}`입니다.
+- 🔴 운영에서는 member의 NetworkPolicy가 Studio(`app: studio`)를 아직 허용하지 않습니다. Studio 매니페스트를 만들 때 함께 엽니다(KT 클라우드 준비 뒤 · Studio 문서 9장).
+
 ### AI (chatbot-service)
 
 - 회원 벡터와 메트릭은 **Gateway의 서명 경로**로 부릅니다. 주소·헤더·서명·에러는 7장 "AI가 호출하는 방법"에 있습니다.
@@ -840,9 +859,9 @@ AI는 member의 `/internal/**`를 직접 부를 수 없습니다(member는 Gatew
 - Hibernate 6.5는 `insert … select`에서 `on conflict (속성, 속성)`의 속성 경로를 풀지 못합니다. 그래서 충돌 대상을 **제약 이름**(`uq_user_notification_event`, `uq_collection_option`)으로 적었습니다. `insert … values`에서는 속성 경로를 그대로 쓸 수 있습니다.
 - 손대지 않은 기존 네이티브 쿼리는 그대로 두었습니다: 팔로우 추가·삭제, 가입 시 회원 INSERT(`RETURNING id`), outbox 릴레이(`FOR UPDATE SKIP LOCKED`), 배송지의 회원 행 잠금.
 
-### 10.4 테스트 (member 156건 · Gateway 124건 통과)
+### 10.4 테스트 (member 162건 · Gateway 124건 통과)
 
-Testcontainers `pgvector/pgvector:pg16`에 Flyway V1~V14를 적용하고 `ddl-auto: validate`로 엔티티와 스키마가 맞는지 확인합니다. Docker가 없으면 DB 테스트는 건너뜁니다.
+Testcontainers `pgvector/pgvector:pg16`에 Flyway V1 · V2를 적용하고 `ddl-auto: validate`로 엔티티와 스키마가 맞는지 확인합니다. Docker가 없으면 DB 테스트는 건너뜁니다.
 
 | 테스트 | 확인하는 것 |
 |---|---|
@@ -853,6 +872,8 @@ Testcontainers `pgvector/pgvector:pg16`에 Flyway V1~V14를 적용하고 `ddl-au
 | `ChatHistoryServiceTest` | 50개 FIFO(실제 삭제), 동시 저장 8건, 탈퇴 시 CASCADE와 404 |
 | `UserServiceRegisterTest` | 가입, 탈퇴 시 모든 테이블 삭제와 `user.withdrawn`, 같은 계정 재가입, 회원 벡터 저장 |
 | `TermsServiceTest` | 약관 v3가 2026-11-21에 시행되는지 |
+| `MemberSchemaValuesTest` (11/13) | Flyway 이력이 V1 · V2 둘인지, V2의 CHECK 값 목록 = Java enum, 약관 9행이 버전순으로 들어갔는지 |
+| `InternalTokenFilterTest` (+1) · `UserServiceRegisterTest` (+1) | 관리자 경로는 `studio` 토큰만 · 다른 내부 경로는 `studio` 토큰 거절 / 관리자 검색(회원 번호 · 이메일 · 닉네임 일부, `%` · `_`는 글자 그대로), 목록의 이메일 가림 |
 | `EventConsumerTest`, `NotificationMessagesTest` | 이벤트 payload → 알림 종류·대상·문장 (지금 payload와 v2 payload 모두) |
 | `MetricControllerTest`, `NotificationControllerTest` | 입력 검증(400), 응답 모양 |
 | `WithdrawalServiceTest`, `EmbeddingFormatTest`, `ChatHistoryServiceUnitTest` | 탈퇴 순서, 벡터 형식, 장기기억 호출 순서 |
@@ -896,7 +917,7 @@ v2 구현 뒤에 남아 있던, 이름만 남았거나 아무도 쓰지 않는 �
 - 확인했지만 그대로 둔 것
   - `MemberActivityEvent`(`member.activity`): 팔로우·언팔로우 때 지금도 발행합니다.
   - `TermsJpaRepository`: 본 코드에서는 안 쓰지만 테스트가 약관 행을 넣을 때 씁니다.
-  - V1~V12 마이그레이션(activity, wishlist 생성 포함): Flyway 이력이라 지우면 기존 DB에서 검증이 깨집니다.
+  - ~~V1~V12 마이그레이션(activity, wishlist 생성 포함): Flyway 이력이라 지우면 기존 DB에서 검증이 깨집니다.~~ → 11/13 오후에 V1 · V2 두 파일로 합쳤습니다(5장). 기존 DB는 스키마를 비우고 다시 올립니다.
   - 기존 네이티브 쿼리(10.3 마지막 줄): 쓰이고 있는 코드라 지울 대상이 아닙니다.
   - 에러코드는 모두 쓰이고 있고, 쓰이지 않는 import는 없었습니다.
 
@@ -904,9 +925,9 @@ v2 구현 뒤에 남아 있던, 이름만 남았거나 아무도 쓰지 않는 �
 
 ### 11.1 배포와 확인
 
-- develop → main 머지 → CI(테스트, ECR 푸시, manifests 커밋) → ArgoCD 배포 → 기동할 때 Flyway가 V13, V14를 적용합니다. Gateway도 같은 흐름으로 배포합니다.
+- develop → main 머지 → CI(테스트, ECR 푸시, manifests 커밋) → ArgoCD 배포 → 기동할 때 Flyway가 V1, V2를 적용합니다(그 전에 `member` 스키마를 비워야 합니다. 5장). Gateway도 같은 흐름으로 배포합니다.
 - 확인할 것
-  - readiness, Flyway 로그에서 V13·V14 성공, `flyway_schema_history`
+  - readiness, Flyway 로그에서 V1·V2 성공, `flyway_schema_history`가 2행
   - 로그인, 프로필, 알림, 메트릭 수집, 탈퇴 API를 직접 호출해 확인
   - Gateway: 탈퇴 응답에 AT·RT·XSRF 만료 쿠키가 붙는지, 메트릭 수집을 빠르게 연달아 보내면 31번째에 429가 오는지, AI 서명 경로가 클러스터 안에서 200이고 외부 주소로는 404인지
 
@@ -914,7 +935,7 @@ v2 구현 뒤에 남아 있던, 이름만 남았거나 아무도 쓰지 않는 �
 
 | 항목 | 담당 |
 |---|---|
-| 벡터 차원 확정 → 새 마이그레이션(V15 이후)에서 `vector(N)`으로 전환. 운영 DB에 pgvector 확장 설치(DBA) | AI, member, DBA |
+| 벡터 차원 확정 → `vector(N)`으로 전환(실데이터가 없으면 V1 수정 + 스키마 다시 올리기, 있으면 V3 이후 파일). 운영 DB에 pgvector 확장 설치(DBA) | AI, member, DBA |
 | 피지컬·굿즈·주문·예매 이벤트 구현, 토픽 이름 확정 | catalog, concert |
 | `user.withdrawn` 구독 구현 | catalog, concert, AI |
 | 회원 데이터 키 발급 → Gateway Deployment에 `ingest.member-keys.<키 ID>` 마운트 → AI에 같은 값 전달. catalog·concert 리팩토링 뒤에 함께 진행합니다(11/13 결정). 순서는 Secret 적용 → `deployment.yaml`의 `items` 추가 머지입니다. 반대로 하면 Secret에 없는 키를 마운트하려다 Gateway Pod가 뜨지 않습니다 | 인프라, AI |
@@ -927,10 +948,11 @@ v2 구현 뒤에 남아 있던, 이름만 남았거나 아무도 쓰지 않는 �
 ## 12. 아직 정하지 않은 것 · 배포 전에 확인할 것
 
 **배포 전에 확인할 것**
+- **마이그레이션 두 파일 규칙과 실데이터.** 지금은 파일을 고치면 스키마를 비우고 다시 올리는 방식입니다. 실제 회원 데이터가 쌓인 뒤에는 이 방식을 쓸 수 없으므로, 그 시점부터 V3 이후 파일을 허용할지 정해야 합니다(약관 새 버전 추가도 여기에 해당합니다).
 - **Gateway에 회원 데이터 키가 없으면 AI 경로는 전부 401입니다.** `ingest.member-keys.<키 ID>` 시크릿을 만들어 Gateway Deployment에 마운트해야 합니다(수집 키 `ingest.keys.crawler-*`와 같은 방식, 매니페스트 저장소 작업). 키가 없어도 Gateway 기동과 다른 경로에는 영향이 없습니다. 키 세팅은 catalog·concert 리팩토링 뒤에 함께 합니다(11.2).
 - **catalog에 `/api/cart/**` API가 아직 없습니다.** Gateway 라우트만 먼저 들어가므로, catalog가 구현하기 전에는 404가 납니다.
 - **catalog는 지금 새로 수집한 앨범마다 `album.released`를 보냅니다**(발매일과 무관). catalog가 "최근 발매만 발행" 규칙을 넣기 전에 배포하면, 예전 앨범을 수집할 때마다 팔로워에게 발매 알림이 갑니다.
-- 약관 v3 시행일 `2026-11-21`은 임시로 잡은 값입니다. 배포일 기준 7일 공지에 맞는지 확인하고, 다르면 새 마이그레이션으로 고칩니다(V14는 적용 후 수정 불가).
+- 약관 v3 시행일 `2026-11-21`은 임시로 잡은 값입니다. 배포일 기준 7일 공지에 맞는지 확인하고, 다르면 V2를 고치고 스키마를 다시 올립니다(적용된 파일만 고치면 체크섬 검증에 걸립니다. 5장).
 - 새 토픽(`physical_album.released`, `goods.released`, `order.confirmed`, `order.refunded`, `booking.cancelled`)은 아직 발행하는 서비스가 없습니다. 그동안 피지컬·굿즈·주문·예매 취소 알림과 콜렉션 자동 추가는 동작하지 않습니다(예전 `payment.completed` 기반 자동 추가는 제거됨).
 
 **아직 정하지 않은 것**

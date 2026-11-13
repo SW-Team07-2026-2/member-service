@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 /** UserRepository 포트의 구현 — Spring Data 가 파생 쿼리 · CRUD 를 만들고, 네이티브 쿼리만 여기서 선언합니다 */
@@ -25,6 +26,16 @@ public interface UserJpaRepository extends JpaRepository<UserEntity, Long>, User
     Optional<Long> insertIgnore(@Param("provider") String provider, @Param("providerUid") String providerUid,
                                 @Param("email") String email, @Param("nickname") String nickname,
                                 @Param("profileImageUrl") String profileImageUrl);
+
+    @Override
+    @Query(value = """
+            SELECT * FROM users
+            WHERE id = CAST(:id AS bigint) OR lower(email) = lower(:email) OR nickname ILIKE :likePattern ESCAPE '\\'
+            ORDER BY id DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<UserEntity> searchForAdmin(@Param("id") Long id, @Param("email") String email,
+                                    @Param("likePattern") String likePattern, @Param("limit") int limit);
 
     @Override
     @Modifying

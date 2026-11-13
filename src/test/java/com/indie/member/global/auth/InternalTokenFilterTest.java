@@ -25,10 +25,14 @@ class InternalTokenFilterTest {
     private static final String SECRET = "0123456789abcdef0123456789abcdef-local";
 
     private final InternalTokenFilter filter = new InternalTokenFilter(SECRET,
-            new MemberProperties.Internal("member", List.of("gateway"), 30), Clock.systemUTC(), new ObjectMapper());
+            new MemberProperties.Internal("member", List.of("gateway"), List.of("studio"), 30), Clock.systemUTC(), new ObjectMapper());
 
     private MockHttpServletResponse call(String token) throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/internal/auth/issue");
+        return call(token, "/internal/auth/issue");
+    }
+
+    private MockHttpServletResponse call(String token, String path) throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", path);
         if (token != null) request.addHeader(InternalTokenFilter.HEADER, token);
         MockHttpServletResponse response = new MockHttpServletResponse();
         filter.doFilter(request, response, new MockFilterChain());
@@ -63,6 +67,14 @@ class InternalTokenFilterTest {
     @Test
     void unknownIssuerIs401() throws Exception {
         assertThat(call(token(SECRET, "crawler", "member", 300)).getStatus()).isEqualTo(401);
+    }
+
+    /** ★ 발급자는 경로로 나뉩니다 — 관리자(studio) 토큰은 /internal/admin/** 만, Gateway 토큰은 그 밖만 */
+    @Test
+    void adminPathsAcceptOnlyAdminIssuers() throws Exception {
+        assertThat(call(token(SECRET, "studio", "member", 300), "/internal/admin/members/7").getStatus()).isEqualTo(200);
+        assertThat(call(token(SECRET, "gateway", "member", 300), "/internal/admin/members/7").getStatus()).isEqualTo(401);
+        assertThat(call(token(SECRET, "studio", "member", 300), "/internal/auth/issue").getStatus()).isEqualTo(401);
     }
 
     @Test

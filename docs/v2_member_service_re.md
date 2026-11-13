@@ -1,8 +1,9 @@
 # member-service v2 리팩토링 설계
 
-> **상태: 구현 완료 · develop 머지(2026-11-13) · main 배포 전.** member와 Gateway 모두 각 저장소의 `refactor/member-v2` 브랜치를 develop에 머지했습니다.
+> **상태: 운영 배포 완료 (2026-11-13).** main `db0df58`(member) · `7aacd38`(Gateway)이 ArgoCD로 배포되어 `api.indig.co.kr`에서 v2 API가 응답합니다. 운영 DB의 `member` 스키마는 비우고 V1 · V2로 다시 만들었습니다(11.1).
 > member는 2026-11-12에 구현했고(테스트 156건 통과), 2026-11-13에 Gateway 수정(테스트 124건 통과)과 낡은 코드 정리(10.6)를 더했습니다.
-> 2026-11-13(오후): 마이그레이션을 **V1(구조) · V2(값) 두 파일**로 합쳤고(5장), 관리자(Studio CS)용 회원 조회 내부 API를 더했습니다(7장). 브랜치 `refactor/flyway-v1-v2`, 테스트 162건 통과.
+> 2026-11-13(오후): 마이그레이션을 **V1(구조) · V2(값) 두 파일**로 합쳤고(5장), 관리자(Studio CS)용 회원 조회 내부 API를 더했습니다(7장). 테스트 162건 통과.
+> 전 서비스 공통의 남은 일은 `indie-msa/docs/v2_후속_작업.md`, 전체 API는 `indie-msa/docs/v2_API_명세서.md`, 프론트 확인 사항은 `indie-msa/docs/v2_프론트_체크사항.md`에 있습니다.
 > 이 문서가 member v2의 기준입니다. 구현하면서 설계와 달라진 부분은 본문에 반영했고, 10.5에 따로 모았습니다.
 > 마지막 장(12장)에 아직 정하지 않은 항목과 배포 전에 확인할 항목을 모아 두었습니다.
 
@@ -768,6 +769,7 @@ AI는 member의 `/internal/**`를 직접 부를 수 없습니다(member는 Gatew
   - 회원 벡터: `PUT`/`GET /ingest/members/{userId}/embedding`. pgvector 텍스트 형식이고, 차원과 모델은 AI가 관리합니다. 차원이 정해지면 member가 `vector(N)`으로 전환합니다.
   - 메트릭: `GET /ingest/members/{userId}/metrics` (6.5의 파라미터). 원본 이벤트보다 `aggregate=true`를 권장합니다.
   - **회원 데이터 키가 따로 필요합니다.** 수집기가 쓰는 수집 키로는 열리지 않습니다. 키 ID와 값은 인프라 담당과 정해 Gateway에 `ingest.member-keys.<키 ID>`로 넣습니다(12장).
+  - 🔴 2026-11-13 운영 기준 이 키가 Gateway에 마운트되어 있지 않아(기동 로그 `ingest_keys_missing keys=ingest.member-keys`) `/ingest/members/**`는 전부 401입니다. 챗봇도 아직 이 경로를 부르지 않습니다.
 - 장기기억 API(M26, M27) 계약은 같습니다. 탈퇴 409는 없어지고 404가 됩니다.
 - `user.withdrawn` 구독: `ai` 스키마에 회원 단위 데이터가 있으면 삭제합니다.
 
@@ -926,8 +928,12 @@ v2 구현 뒤에 남아 있던, 이름만 남았거나 아무도 쓰지 않는 �
 ### 11.1 배포와 확인
 
 - develop → main 머지 → CI(테스트, ECR 푸시, manifests 커밋) → ArgoCD 배포 → 기동할 때 Flyway가 V1, V2를 적용합니다(그 전에 `member` 스키마를 비워야 합니다. 5장). Gateway도 같은 흐름으로 배포합니다.
+- **2026-11-13 운영 배포 결과**
+  - 순서: develop 머지 → member · catalog · concert · payment를 0대로 내림 → 남겨 둘 회원 1명(id 1, 카카오 · 프론트 담당자 계정으로 추정)과 동의 4건을 임시 스키마로 복사 → `DROP SCHEMA member CASCADE`(catalog · concert · payment도 함께) → `db-init.sh` → develop→main 머지 → CI · ArgoCD로 새 이미지 → 1대로 올림 → 회원 · 동의를 되돌림(약관은 `code` · `version`으로 새 `terms_id`에 다시 연결, 값 대조 일치) → 임시 스키마 삭제
+  - 확인함: `flyway_schema_history` 버전 행이 1 · 2 둘, 테이블 주인 `member_svc`, 약관 9행, `GET /api/members/terms` 200, `GET /api/members/me`(토큰 없음) 401, 기동 로그 ERROR 0건
+  - 확인하지 못함: 카카오 로그인 → 가입 → 알림 · 메트릭 · 탈퇴를 운영에서 직접 호출하지 않았습니다. 남겨 둔 회원은 예전 토큰이 무효일 수 있어 다시 로그인해야 할 수 있습니다
 - 확인할 것
-  - readiness, Flyway 로그에서 V1·V2 성공, `flyway_schema_history`가 2행
+  - readiness, Flyway 로그에서 V1·V2 성공, `flyway_schema_history`가 2행 ✅
   - 로그인, 프로필, 알림, 메트릭 수집, 탈퇴 API를 직접 호출해 확인
   - Gateway: 탈퇴 응답에 AT·RT·XSRF 만료 쿠키가 붙는지, 메트릭 수집을 빠르게 연달아 보내면 31번째에 429가 오는지, AI 서명 경로가 클러스터 안에서 200이고 외부 주소로는 404인지
 
@@ -936,10 +942,10 @@ v2 구현 뒤에 남아 있던, 이름만 남았거나 아무도 쓰지 않는 �
 | 항목 | 담당 |
 |---|---|
 | 벡터 차원 확정 → `vector(N)`으로 전환(실데이터가 없으면 V1 수정 + 스키마 다시 올리기, 있으면 V3 이후 파일). 운영 DB에 pgvector 확장 설치(DBA) | AI, member, DBA |
-| 피지컬·굿즈·주문·예매 이벤트 구현, 토픽 이름 확정 | catalog, concert |
-| `user.withdrawn` 구독 구현 | catalog, concert, AI |
+| ~~피지컬·굿즈·주문·예매 이벤트 구현, 토픽 이름 확정~~ ✅ 11/13 catalog v2(`physical_album.released` · `goods.released` · `order.confirmed` · `order.refunded`) · concert v2(`booking.cancelled`) 배포, 토픽은 manifests `topics-job`에 있음 | catalog, concert |
+| `user.withdrawn` 구독 구현 — ✅ catalog · concert 11/13 배포, **AI(챗봇) 남음** | AI |
 | 회원 데이터 키 발급 → Gateway Deployment에 `ingest.member-keys.<키 ID>` 마운트 → AI에 같은 값 전달. catalog·concert 리팩토링 뒤에 함께 진행합니다(11/13 결정). 순서는 Secret 적용 → `deployment.yaml`의 `items` 추가 머지입니다. 반대로 하면 Secret에 없는 키를 마운트하려다 Gateway Pod가 뜨지 않습니다 | 인프라, AI |
-| `/api/cart/**` API 구현 (Gateway 라우트는 준비됨) | catalog |
+| ~~`/api/cart/**` API 구현~~ ✅ 11/13 catalog v2 배포 | catalog |
 | ~~공용 문서(`indie-msa/docs`의 20·22·27·29·32)에 바뀐 서명 규칙·경로·키 반영~~ ✅ 11/13 공용 API 문서 갱신: 15·23·26·31(회원 API, 새 ID M28·M29·M30·M31, I29·I30·I31, K9), 32(대화 기록 저장 변경, 회원 데이터 경로 §9), 20·22(서명 규칙·경로·탈퇴 쿠키·메트릭 한도·장바구니 라우트), 27·29(회원 데이터 키, 발급 전), 21(v1 기준이라는 안내). 운영 배포 전이라 각 항목에 "develop · 운영 배포 전"을 표시했습니다 | Gateway |
 | 개인정보처리방침 새 버전 법무 검토 | 기획 |
 | user_metric 데이터량 확인. 많아지면 월별 파티션으로 바꾸고 파티션 단위로 삭제 | member |
@@ -950,13 +956,13 @@ v2 구현 뒤에 남아 있던, 이름만 남았거나 아무도 쓰지 않는 �
 **배포 전에 확인할 것**
 - **마이그레이션 두 파일 규칙과 실데이터.** 지금은 파일을 고치면 스키마를 비우고 다시 올리는 방식입니다. 실제 회원 데이터가 쌓인 뒤에는 이 방식을 쓸 수 없으므로, 그 시점부터 V3 이후 파일을 허용할지 정해야 합니다(약관 새 버전 추가도 여기에 해당합니다).
 - **Gateway에 회원 데이터 키가 없으면 AI 경로는 전부 401입니다.** `ingest.member-keys.<키 ID>` 시크릿을 만들어 Gateway Deployment에 마운트해야 합니다(수집 키 `ingest.keys.crawler-*`와 같은 방식, 매니페스트 저장소 작업). 키가 없어도 Gateway 기동과 다른 경로에는 영향이 없습니다. 키 세팅은 catalog·concert 리팩토링 뒤에 함께 합니다(11.2).
-- **catalog에 `/api/cart/**` API가 아직 없습니다.** Gateway 라우트만 먼저 들어가므로, catalog가 구현하기 전에는 404가 납니다.
-- **catalog는 지금 새로 수집한 앨범마다 `album.released`를 보냅니다**(발매일과 무관). catalog가 "최근 발매만 발행" 규칙을 넣기 전에 배포하면, 예전 앨범을 수집할 때마다 팔로워에게 발매 알림이 갑니다.
+- ~~catalog에 `/api/cart/**` API가 아직 없습니다.~~ ✅ 11/13 catalog v2와 함께 배포했습니다.
+- ~~catalog는 새로 수집한 앨범마다 `album.released`를 보냅니다.~~ ✅ catalog v2는 발매일이 최근 30일 이내일 때만 보냅니다(`app.event.release-window-days`).
 - 약관 v3 시행일 `2026-11-21`은 임시로 잡은 값입니다. 배포일 기준 7일 공지에 맞는지 확인하고, 다르면 V2를 고치고 스키마를 다시 올립니다(적용된 파일만 고치면 체크섬 검증에 걸립니다. 5장).
-- 새 토픽(`physical_album.released`, `goods.released`, `order.confirmed`, `order.refunded`, `booking.cancelled`)은 아직 발행하는 서비스가 없습니다. 그동안 피지컬·굿즈·주문·예매 취소 알림과 콜렉션 자동 추가는 동작하지 않습니다(예전 `payment.completed` 기반 자동 추가는 제거됨).
+- ~~새 토픽은 아직 발행하는 서비스가 없습니다.~~ ✅ 11/13 catalog · concert v2가 발행합니다. 실제 Kafka를 거친 알림 · 콜렉션 자동 추가는 운영에서 아직 확인하지 않았습니다(데이터가 없음).
 
 **아직 정하지 않은 것**
-- 새 이벤트 토픽 이름: 7장 "이벤트 규칙"의 제안 이름으로 구현했습니다. catalog, concert와 확정하고, 바뀌면 컨슈머의 토픽 이름을 고칩니다
+- ~~새 이벤트 토픽 이름~~ → 11/13 catalog · concert가 7장의 이름 그대로 구현해 확정되었습니다
 - **탈퇴 직후 다른 기기에 남은 액세스 토큰(최대 30분).** 지금 블랙리스트는 토큰 1개(jti) 단위라 다른 기기의 토큰은 만료될 때까지 Gateway를 통과합니다. member 요청은 404가 되지만 catalog·concert는 탈퇴한 회원 ID로 요청을 받게 됩니다. 막으려면 member가 회원 단위 차단 키를 쓰고 Gateway가 확인하도록 추가해야 합니다
 - 회원 데이터 키를 AI의 어느 서비스가 가질지 (문서에서는 chatbot-service로 가정)
 - PRIVACY 동의 약관 버전이 올라갈 때 기존 회원에게 재동의를 받을지

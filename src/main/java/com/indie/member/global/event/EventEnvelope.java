@@ -8,16 +8,23 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * 이벤트 봉투 { eventId, type, version, occurredAt, payload } (08_기능상세 §0.7).
- * 모르는 필드는 무시합니다. payload 래퍼가 없는 평평한 형식(payment.completed 예시)도 받아 줍니다.
- * 필수 값이 없으면 IllegalArgumentException → 재시도 없이 DLT.
+ * 이벤트 봉투 { eventId, type, version, occurredAt, payload } (08_기능상세 §0.7 · docs/v2_member_service_re.md §7).
+ * 모르는 필드는 무시합니다. payload 래퍼가 없는 평평한 형식도 받아 줍니다.
+ * 필수 값이 없거나 처리할 수 없는 version 이면 IllegalArgumentException → 재시도 없이 DLT.
  */
 public record EventEnvelope(UUID eventId, OffsetDateTime occurredAt, JsonNode payload) {
+
+    /** payload 에 필드를 추가하는 것은 같은 version 입니다 — 삭제 · 의미 변경일 때만 발행 쪽이 올립니다 */
+    private static final int SUPPORTED_VERSION = 1;
 
     public static EventEnvelope parse(ObjectMapper objectMapper, String json) throws JsonProcessingException {
         JsonNode root = objectMapper.readTree(json);
         if (root == null || !root.hasNonNull("eventId")) {
             throw new IllegalArgumentException("event without eventId");
+        }
+        if (root.hasNonNull("version") && root.get("version").asInt() > SUPPORTED_VERSION) {
+            throw new IllegalArgumentException("event " + root.get("eventId").asText() + " has unsupported version "
+                    + root.get("version").asText());
         }
         JsonNode payload = root.hasNonNull("payload") ? root.get("payload") : root;
         String occurred = root.hasNonNull("occurredAt") ? root.get("occurredAt").asText()
@@ -38,5 +45,20 @@ public record EventEnvelope(UUID eventId, OffsetDateTime occurredAt, JsonNode pa
 
     public String text(String name) {
         return payload.hasNonNull(name) ? payload.get(name).asText() : null;
+    }
+
+    /** 이름이 바뀌는 중인 필드 — 앞에서부터 처음 있는 값 (없으면 null) */
+    public String firstText(String... names) {
+        for (String name : names) {
+            String value = text(name);
+            if (value != null) return value;
+        }
+        return null;
+    }
+
+    public String requiredText(String... names) {
+        String value = firstText(names);
+        if (value == null) throw new IllegalArgumentException("event " + eventId + " without " + String.join("|", names));
+        return value;
     }
 }

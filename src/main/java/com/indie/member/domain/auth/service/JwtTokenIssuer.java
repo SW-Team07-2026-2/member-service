@@ -47,7 +47,7 @@ public class JwtTokenIssuer implements TokenIssuer {
         JWTClaimsSet claims = new JWTClaimsSet.Builder()
                 .issuer(props.issuer())
                 .subject(String.valueOf(user.getId()))      // JWT 규격상 sub 는 문자열
-                .claim("roles", user.roleList())
+                .claim("roles", ROLES)
                 .jwtID(UUID.randomUUID().toString())
                 .issueTime(Date.from(now))
                 .expirationTime(Date.from(now.plusSeconds(props.atTtlSeconds())))

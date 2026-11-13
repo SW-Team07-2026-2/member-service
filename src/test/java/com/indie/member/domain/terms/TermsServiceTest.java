@@ -48,7 +48,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 /**
- * Flyway V8 · V9 · V10 · V12 위에서 약관 · 동의 — 현재 버전 고르기 · 가입 검사 · 게시 문서 · MY 마케팅 켜고 끄기. Docker 가 없으면 건너뜁니다.
+ * Flyway 스키마와 V2 의 약관 본문 위에서 약관 · 동의 — 현재 버전 고르기 · 가입 검사 · 게시 문서 · MY 마케팅 켜고 끄기. Docker 가 없으면 건너뜁니다.
  * 서비스 호출마다 커밋합니다 (운영과 같게)
  */
 @Testcontainers(disabledWithoutDocker = true)
@@ -88,7 +88,7 @@ class TermsServiceTest {
         ids = service.current().stream().collect(Collectors.toMap(TermsEntity::getCode, TermsEntity::getId));
     }
 
-    /** ★ V9 시드 — 4개 · 가입 화면 순서 · 마케팅만 선택 · 본문 있음 */
+    /** ★ v1 시드 — 4개 · 가입 화면 순서 · 마케팅만 선택 · 본문 있음 */
     @Test
     void currentTermsAreSeededInScreenOrder() {
         List<TermsEntity> current = service.current();
@@ -124,7 +124,7 @@ class TermsServiceTest {
                 new TermsAgreement(999_999L, true))), TermsErrorCode.TERMS_OUTDATED);
     }
 
-    /** M25 — V10 처리방침은 게시 문서: 가입 화면(M24) · 가입 검사에 없고 따로 내려감 */
+    /** M25 — 처리방침은 게시 문서: 가입 화면(M24) · 가입 검사에 없고 따로 내려감 */
     @Test
     void privacyPolicyIsDocumentNotConsent() {
         TermsEntity policy = service.document(TermsCode.PRIVACY_POLICY);
@@ -138,7 +138,7 @@ class TermsServiceTest {
                 new TermsAgreement(policy.getId(), true))), TermsErrorCode.TERMS_OUTDATED);
     }
 
-    /** V12 — 대화 기록 고지 v2 는 7일 공지 뒤 시행. 실행 날짜와 무관하게 시점을 넘겨 확인합니다 */
+    /** 대화 기록 고지 v2 는 7일 공지 뒤 시행. 실행 날짜와 무관하게 시점을 넘겨 확인합니다 */
     @Test
     void chatHistoryNoticeTakesEffectOnNovember14() {
         List<TermsCode> codes = List.of(TermsCode.PRIVACY, TermsCode.PRIVACY_POLICY);
@@ -149,6 +149,22 @@ class TermsServiceTest {
         List<TermsEntity> v2 = repository.findCurrent(codes, OffsetDateTime.parse("2026-11-14T00:00:00+09:00"));
         assertThat(v2).hasSize(2).extracting(TermsEntity::getVersion).containsOnly("v2");
         assertThat(v2).allSatisfy(t -> assertThat(t.getContent()).contains("챗봇 답변", "최근 메시지 50개"));
+    }
+
+    /** member v2 고지 v3 (행동 기록 · 알림 보관 · 분석 쿠키) 는 7일 공지 뒤 2026-11-21 시행 */
+    @Test
+    void memberV2NoticeTakesEffectOnNovember21() {
+        List<TermsCode> codes = List.of(TermsCode.PRIVACY, TermsCode.PRIVACY_POLICY);
+
+        assertThat(repository.findCurrent(codes, OffsetDateTime.parse("2026-11-20T23:59:59+09:00")))
+                .extracting(TermsEntity::getVersion).containsOnly("v2");
+
+        List<TermsEntity> v3 = repository.findCurrent(codes, OffsetDateTime.parse("2026-11-21T00:00:00+09:00"));
+        assertThat(v3).hasSize(2).extracting(TermsEntity::getVersion).containsOnly("v3");
+        assertThat(v3).allSatisfy(t -> assertThat(t.getContent())
+                .contains("서비스 이용 기록", "6개월", "3개월", "장바구니").doesNotContain("위시리스트", "고른 장르"));
+        TermsEntity policy = v3.stream().filter(t -> t.getCode() == TermsCode.PRIVACY_POLICY).findFirst().orElseThrow();
+        assertThat(policy.getContent()).contains("Google Analytics").doesNotContain("추적 쿠키는 사용하지 않습니다");
     }
 
     /** 새 버전이 시행되면 옛 id 는 409 · 시행 전(공지 기간)이면 옛 버전이 그대로 현재 */

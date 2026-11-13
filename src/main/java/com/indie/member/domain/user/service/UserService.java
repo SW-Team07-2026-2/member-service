@@ -7,36 +7,43 @@ import com.indie.member.domain.terms.dto.request.TermsAgreement;
 import com.indie.member.domain.terms.service.TermsService;
 import com.indie.member.domain.user.entity.NicknamePolicy;
 import com.indie.member.domain.user.entity.UserEntity;
-import com.indie.member.domain.user.exception.UserErrorCode;
 import com.indie.member.domain.user.repository.UserRepository;
-import com.indie.member.domain.wishlist.repository.WishlistRepository;
 import com.indie.member.global.common.exception.CommonErrorCode;
 import com.indie.member.global.common.exception.GeneralException;
+import com.indie.member.global.event.EventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
 public class UserService {
 
+    /** 회원 탈퇴 이벤트 — catalog · concert · AI 가 받아 자기 쪽 회원 데이터를 정리합니다 */
+    public static final String WITHDRAWN_TOPIC = "user.withdrawn";
+
     private final UserRepository userRepository;
     private final FollowRepository followRepository;
-    private final WishlistRepository wishlistRepository;
     private final CollectionRepository collectionRepository;
     private final FollowService followService;
     private final TermsService termsService;
+    private final EventPublisher eventPublisher;
+    private final Clock clock;
 
     public UserService(UserRepository userRepository, FollowRepository followRepository,
-                       WishlistRepository wishlistRepository, CollectionRepository collectionRepository,
-                       FollowService followService, TermsService termsService) {
+                       CollectionRepository collectionRepository, FollowService followService,
+                       TermsService termsService, EventPublisher eventPublisher, Clock clock) {
         this.userRepository = userRepository;
         this.followRepository = followRepository;
-        this.wishlistRepository = wishlistRepository;
         this.collectionRepository = collectionRepository;
         this.followService = followService;
         this.termsService = termsService;
+        this.eventPublisher = eventPublisher;
+        this.clock = clock;
     }
 
     /**
@@ -44,15 +51,13 @@ public class UserService {
      * <ul>
      *   <li>(provider, provider_uid) 로 식별 — 이메일로 기존 계정과 병합하지 않습니다 (자동 병합은 계정 탈취 경로)</li>
      *   <li>있으면 profileImageUrl 만 갱신 — 닉네임은 사용자가 바꿨을 수 있으니 덮지 않습니다</li>
+     *   <li>탈퇴한 회원은 행이 없으므로 처음 온 것과 같습니다 (다시 가입하면 새 회원)</li>
      * </ul>
      */
     @Transactional
     public Optional<UserEntity> findOnLogin(UserEntity.Provider provider, String providerUid, String email, String profileImageUrl) {
         Optional<UserEntity> existing = userRepository.findByProviderAndProviderUid(provider, providerUid);
-        existing.ifPresent(user -> {
-            checkActive(user);
-            refreshProviderFields(user, email, profileImageUrl);
-        });
+        existing.ifPresent(user -> refreshProviderFields(user, email, profileImageUrl));
         return existing;
     }
 
@@ -85,7 +90,6 @@ public class UserService {
         // 동시 가입 — 다른 요청이 먼저 INSERT 했습니다
         UserEntity user = userRepository.findByProviderAndProviderUid(provider, providerUid)
                 .orElseThrow(() -> new IllegalStateException("user insert failed"));
-        checkActive(user);
         return new LoginResult(user, false);
     }
 
@@ -94,11 +98,24 @@ public class UserService {
         return userRepository.findById(userId).orElseThrow(() -> new GeneralException(CommonErrorCode.NOT_FOUND));
     }
 
-    /** 내 프로필 + 팔로우 · 위시리스트 · 컬렉션 개수 */
+    /** 관리자(Studio CS) 회원 검색 — 숫자면 회원 번호로도 찾습니다 */
+    @Transactional(readOnly = true)
+    public List<UserEntity> searchForAdmin(String q, int limit) {
+        Long id = q.matches("\\d{1,18}") ? Long.valueOf(q) : null;
+        String like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+        return userRepository.searchForAdmin(id, q, like, limit);
+    }
+
+    /** RT 회전처럼 "없을 수 있는" 경로용 — 탈퇴한 회원이면 빈 값 */
+    @Transactional(readOnly = true)
+    public Optional<UserEntity> find(long userId) {
+        return userRepository.findById(userId);
+    }
+
+    /** 내 프로필 + 팔로우 · 컬렉션 개수 */
     @Transactional(readOnly = true)
     public MyProfile me(long userId) {
-        return new MyProfile(get(userId), followRepository.countByUserId(userId),
-                wishlistRepository.countByUserId(userId), collectionRepository.countByUserId(userId));
+        return new MyProfile(get(userId), followRepository.countByUserId(userId), collectionRepository.countByUserId(userId));
     }
 
     @Transactional
@@ -108,10 +125,18 @@ public class UserService {
         return user;
     }
 
-    private static void checkActive(UserEntity user) {
-        if (user.getStatus() == UserEntity.Status.WITHDRAWN) {
-            throw new GeneralException(UserErrorCode.ACCOUNT_WITHDRAWN);
+    /**
+     * 탈퇴 — 회원 행을 지웁니다 (hard delete). member 의 회원 데이터는 FK CASCADE 로 함께 지워집니다.
+     * ★ 삭제와 user.withdrawn 이벤트를 같은 트랜잭션에 — 다른 서비스가 정리할 기회를 놓치지 않습니다.
+     * 이미 탈퇴한 회원이면 404. Redis(RT · 배지 캐시) 정리는 커밋 뒤 WithdrawalService 가 합니다.
+     */
+    @Transactional
+    public void delete(long userId) {
+        if (userRepository.deleteOne(userId) == 0) {
+            throw new GeneralException(CommonErrorCode.NOT_FOUND);
         }
+        eventPublisher.publish(WITHDRAWN_TOPIC,
+                Map.of("userId", userId, "withdrawnAt", OffsetDateTime.now(clock).toString()));
     }
 
     /** 기존 사용자 — profileImageUrl · email 만 갱신. email 은 다른 계정이 쓰고 있으면 건드리지 않습니다 */
@@ -126,5 +151,5 @@ public class UserService {
 
     public record LoginResult(UserEntity user, boolean newUser) {}
 
-    public record MyProfile(UserEntity user, long followCount, long wishlistCount, long collectionCount) {}
+    public record MyProfile(UserEntity user, long followCount, long collectionCount) {}
 }

@@ -18,9 +18,10 @@ import java.util.List;
 /**
  * Concert 이벤트 → 알림 (docs/v2_member_service_re.md §6.3 · §8).
  * <pre>
- * concert.created     팔로워에게  CONCERT_ANNOUNCED (페스티벌은 라인업 전체의 팔로워)
- * booking.completed   본인에게    BOOKING_DONE
- * booking.cancelled   본인에게    BOOKING_CANCELLED
+ * concert.created         팔로워에게  CONCERT_ANNOUNCED (페스티벌은 라인업 전체의 팔로워)
+ * concert.lineup_updated  팔로워에게  CONCERT_ANNOUNCED (새로 추가된 아티스트의 팔로워만)
+ * booking.completed       본인에게    BOOKING_DONE
+ * booking.cancelled       본인에게    BOOKING_CANCELLED
  * </pre>
  */
 @Component
@@ -50,6 +51,25 @@ public class ConcertEventConsumer {
         }
         notificationWriter.fanOut(e.eventId(), NotificationType.CONCERT_ANNOUNCED, e.requiredLong("concertId"), artistIds,
                 NotificationMessages.concertAnnounced(e.requiredText("title"), e.text("startsAt"), e.text("venueName")));
+        ack.acknowledge();
+    }
+
+    /**
+     * 라인업 추가 — addedArtistIds(새로 추가된 팀)의 팔로워에게만. 이미 공개된 팀의 팔로워는 공연 등록 때 받았습니다.
+     * 여러 팀을 팔로우한 회원도 알림은 1건입니다 (NotificationWriter.fanOut).
+     */
+    @KafkaListener(topics = "concert.lineup_updated")
+    public void onLineupUpdated(ConsumerRecord<String, String> record, Acknowledgment ack) throws JsonProcessingException {
+        EventEnvelope e = EventEnvelope.parse(objectMapper, record.value());
+        List<Long> added = new ArrayList<>();
+        for (JsonNode id : e.payload().path("addedArtistIds")) {
+            if (id.canConvertToLong() && !added.contains(id.asLong())) added.add(id.asLong());
+        }
+        if (added.isEmpty()) {
+            throw new IllegalArgumentException("event " + e.eventId() + " without addedArtistIds");
+        }
+        notificationWriter.fanOut(e.eventId(), NotificationType.CONCERT_ANNOUNCED, e.requiredLong("concertId"), added,
+                NotificationMessages.lineupAdded(e.requiredText("title"), e.text("startsAt"), e.text("venueName")));
         ack.acknowledge();
     }
 

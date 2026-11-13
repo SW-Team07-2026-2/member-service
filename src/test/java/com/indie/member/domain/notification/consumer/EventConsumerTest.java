@@ -122,6 +122,18 @@ class EventConsumerTest {
                 "새소년 단독공연 공연 등록 · 12/24(목) 19:00 · 무신사 개러지");
     }
 
+    /** 라인업 추가 — 새로 추가된 팀(중복 제거)의 팔로워에게만 · 기존 라인업(artistIds)은 보지 않습니다 */
+    @Test
+    void lineupUpdatedNotifiesFollowersOfAddedArtistsOnly() throws Exception {
+        concert.onLineupUpdated(event("concert.lineup_updated", """
+                {"concertId":55,"title":"펜타포트 2027","startsAt":"2027-08-01T08:00:00Z","venueName":"송도달빛축제공원",
+                 "artistIds":[9,7,12,15],"addedArtistIds":[12,15,12]}
+                """), ack);
+        verify(writer).fanOut(EVENT_ID, NotificationType.CONCERT_ANNOUNCED, 55, List.of(12L, 15L),
+                "펜타포트 2027 라인업 추가 · 8/1(일) 17:00 · 송도달빛축제공원");
+        verify(ack).acknowledge();
+    }
+
     /** 지금 Concert 가 보내는 booking.completed (공연명이 title · 장소 없음) 도 받습니다 */
     @Test
     void bookingEventsNotifyOwner() throws Exception {
@@ -149,6 +161,9 @@ class EventConsumerTest {
                 """), ack)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> concert.onConcertCreated(event("concert.created", """
                 {"concertId":55,"title":"공연","artistIds":[]}
+                """), ack)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> concert.onLineupUpdated(event("concert.lineup_updated", """
+                {"concertId":55,"title":"펜타포트 2027","artistIds":[9,7],"addedArtistIds":[]}
                 """), ack)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> concert.onBookingCompleted(new ConsumerRecord<>("booking.completed", 0, 0, null, """
                 {"eventId":"%s","type":"booking.completed","version":2,"occurredAt":"2026-11-12T10:00:00+09:00",

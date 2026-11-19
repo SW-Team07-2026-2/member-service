@@ -4,7 +4,9 @@ import com.indie.member.domain.follow.entity.FollowEntity;
 import com.indie.member.domain.follow.entity.FollowItem;
 import com.indie.member.global.common.util.Cursor;
 import com.indie.member.global.common.util.CursorPredicates;
+import com.indie.member.domain.follow.entity.QFollowEntity;
 import com.querydsl.core.types.Projections;
+import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.springframework.stereotype.Repository;
 
@@ -46,7 +48,9 @@ public class FollowRepositoryAdapter implements FollowRepository {
 
     @Override
     public List<FollowItem> findPage(long userId, Cursor cursor, int limit) {
-        return query.select(Projections.constructor(FollowItem.class, followEntity.id.artistId, followEntity.followedAt))
+        QFollowEntity fans = new QFollowEntity("fans");   // 그 아티스트의 팔로워 수 — idx_follow_artist
+        return query.select(Projections.constructor(FollowItem.class, followEntity.id.artistId, followEntity.followedAt,
+                        JPAExpressions.select(fans.count()).from(fans).where(fans.id.artistId.eq(followEntity.id.artistId))))
                 .from(followEntity)
                 .where(followEntity.id.userId.eq(userId),
                         CursorPredicates.before(followEntity.followedAt, followEntity.id.artistId, cursor))

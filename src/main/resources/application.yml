@@ -77,6 +77,7 @@ springdoc:
   swagger-ui.enabled: false
 
 app:
+  follows-port: 8181                          # 11/19 팔로우 전용 포트 — /internal/members/{id}/follows 만 (Catalog · Concert 는 NetworkPolicy 로 이 포트에만 허용)
   token:
     at-ttl-seconds: 1800
     rt-ttl-seconds: 1209600

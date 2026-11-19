@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * GET /internal/members/{userId}/follows — Catalog · Concert 의 팔로우 탭 (11/19). 발급자는 follow-issuers(catalog · concert)만.
+ * GET /internal/members/{userId}/follows — Catalog · Concert 의 팔로우 탭 (11/19). 팔로우 전용 포트(8181)로만 · 발급자는 follow-issuers(catalog · concert)만.
  * 팔로우 전부를 최근 팔로우순으로 — 정렬 · 거르기는 부른 쪽이 합니다.
  */
 @RestController

@@ -23,7 +23,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
-import java.util.regex.Pattern;
 
 /**
  * /internal/** 전용 — X-Internal-Token (HS256 · 공유 시크릿) 검증 (§13).
@@ -33,6 +32,7 @@ import java.util.regex.Pattern;
  * ⑤ 발급자는 경로로 나눕니다 — /internal/admin/** 는 admin-issuers(studio)만, 그 밖은 allowed-issuers(gateway)만.
  *   관리자 토큰으로 토큰 발급 · 가입을 부를 수 없고, Gateway 토큰으로 관리자 조회를 부를 수 없습니다.
  *   ✏️ 11/19 /internal/members/{id}/follows 는 follow-issuers(catalog · concert)만 — 팔로우 탭. 그 토큰으로 다른 내부 API 는 못 부릅니다.
+ *   이 경로는 팔로우 전용 포트로만 들어옵니다 (FollowsPortFilter).
  * </pre>
  * 🔴 이 필터 없이 배포되면 클러스터 안의 누구든 임의 사용자의 토큰을 발급받을 수 있습니다.
  * 🔴 X-User-Id 를 신뢰하지 않습니다 — 내부 API 의 사용자 식별은 요청 본문 값으로 합니다.
@@ -41,8 +41,6 @@ public class InternalTokenFilter extends OncePerRequestFilter {
 
     public static final String HEADER = "X-Internal-Token";
     private static final String ADMIN_PREFIX = "/internal/admin/";
-    /** 11/19 팔로우 탭 — Catalog · Concert 가 회원의 팔로우 목록을 읽는 경로. 이 경로만 follow-issuers 를 받습니다 */
-    private static final Pattern FOLLOW_PATH = Pattern.compile("^/internal/members/\\d+/follows$");
     private static final Logger log = LoggerFactory.getLogger(InternalTokenFilter.class);
 
     private final MACVerifier verifier;
@@ -71,7 +69,7 @@ public class InternalTokenFilter extends OncePerRequestFilter {
         }
         String path = request.getRequestURI();
         List<String> issuers = path.startsWith(ADMIN_PREFIX) ? props.adminIssuers()
-                : FOLLOW_PATH.matcher(path).matches() ? props.followIssuers() : props.allowedIssuers();
+                : FollowsPortFilter.FOLLOWS_PATH.matcher(path).matches() ? props.followIssuers() : props.allowedIssuers();
         String rejected = check(token, issuers);
         if (rejected != null) {
             reject(request, response, "expired".equals(rejected)

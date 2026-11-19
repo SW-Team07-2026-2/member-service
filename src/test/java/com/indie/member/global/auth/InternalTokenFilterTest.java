@@ -25,7 +25,7 @@ class InternalTokenFilterTest {
     private static final String SECRET = "0123456789abcdef0123456789abcdef-local";
 
     private final InternalTokenFilter filter = new InternalTokenFilter(SECRET,
-            new MemberProperties.Internal("member", List.of("gateway"), List.of("studio"), 30), Clock.systemUTC(), new ObjectMapper());
+            new MemberProperties.Internal("member", List.of("gateway"), List.of("studio"), List.of("catalog", "concert"), 30), Clock.systemUTC(), new ObjectMapper());
 
     private MockHttpServletResponse call(String token) throws Exception {
         return call(token, "/internal/auth/issue");
@@ -75,6 +75,16 @@ class InternalTokenFilterTest {
         assertThat(call(token(SECRET, "studio", "member", 300), "/internal/admin/members/7").getStatus()).isEqualTo(200);
         assertThat(call(token(SECRET, "gateway", "member", 300), "/internal/admin/members/7").getStatus()).isEqualTo(401);
         assertThat(call(token(SECRET, "studio", "member", 300), "/internal/auth/issue").getStatus()).isEqualTo(401);
+    }
+
+    /** 11/19 팔로우 목록 경로만 catalog · concert 토큰 — 그 토큰으로 토큰 발급 등은 못 부르고, Gateway 토큰은 이 경로를 못 부름 */
+    @Test
+    void followPathAcceptsOnlyFollowIssuers() throws Exception {
+        assertThat(call(token(SECRET, "catalog", "member", 300), "/internal/members/7/follows").getStatus()).isEqualTo(200);
+        assertThat(call(token(SECRET, "concert", "member", 300), "/internal/members/7/follows").getStatus()).isEqualTo(200);
+        assertThat(call(token(SECRET, "catalog", "member", 300), "/internal/auth/issue").getStatus()).isEqualTo(401);
+        assertThat(call(token(SECRET, "catalog", "member", 300), "/internal/members/7/metrics").getStatus()).isEqualTo(401);
+        assertThat(call(token(SECRET, "gateway", "member", 300), "/internal/members/7/follows").getStatus()).isEqualTo(401);
     }
 
     @Test

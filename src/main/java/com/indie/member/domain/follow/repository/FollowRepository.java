@@ -1,6 +1,7 @@
 package com.indie.member.domain.follow.repository;
 
 import com.indie.member.domain.follow.entity.FollowItem;
+import com.indie.member.domain.follow.entity.FollowSummary;
 import com.indie.member.global.common.util.Cursor;
 
 import java.util.List;
@@ -20,4 +21,7 @@ public interface FollowRepository {
 
     /** (followed_at, artist_id) 내림차순 · 커서 다음부터 limit 건 */
     List<FollowItem> findPage(long userId, Cursor cursor, int limit);
+
+    /** 내부 API — 한 회원의 팔로우 전부 · (followed_at, artist_id) 내림차순 · 최대 limit 건 */
+    List<FollowSummary> findSummaries(long userId, int limit);
 }

@@ -7,6 +7,7 @@ import com.indie.member.domain.collection.repository.CollectionRepositoryAdapter
 import com.indie.member.domain.collection.service.CollectionService;
 import com.indie.member.domain.collection.service.CollectionService.Purchased;
 import com.indie.member.domain.follow.entity.FollowItem;
+import com.indie.member.domain.follow.entity.FollowSummary;
 import com.indie.member.domain.follow.repository.FollowRepositoryAdapter;
 import com.indie.member.global.common.exception.GeneralException;
 import com.indie.member.global.common.util.Cursor;
@@ -112,6 +113,19 @@ class MemberQueryRepositoriesTest {
 
         assertThat(follows.findPage(userId, null, 10)).extracting(FollowItem::artistId, FollowItem::followerCount)
                 .containsExactly(Tuple.tuple(21L, 1L), Tuple.tuple(20L, 2L));
+    }
+
+    /** 11/19 내부 API — 팔로우 전부 (최근 팔로우순) · 그 아티스트의 지금 팔로워 수 */
+    @Test
+    void followSummariesCarryFollowerCount() {
+        follow(30, T);
+        follow(31, T.plusMinutes(1));
+        long other = newUser();
+        jdbc.update("INSERT INTO follow (user_id, artist_id) VALUES (?, 30)", other);
+
+        assertThat(follows.findSummaries(userId, 10)).extracting(FollowSummary::artistId, FollowSummary::followerCount)
+                .containsExactly(Tuple.tuple(31L, 1L), Tuple.tuple(30L, 2L));
+        assertThat(follows.findSummaries(userId, 1)).hasSize(1);
     }
 
     /** 옵션 단위 — 같은 LP 의 블랙반 · 컬러반은 2행, 같은 옵션을 다시 넣으면 무시 (UNIQUE(user_id, option_id)) */

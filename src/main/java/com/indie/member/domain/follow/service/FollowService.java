@@ -1,6 +1,7 @@
 package com.indie.member.domain.follow.service;
 
 import com.indie.member.domain.follow.entity.FollowItem;
+import com.indie.member.domain.follow.entity.FollowSummary;
 import com.indie.member.domain.follow.repository.FollowRepository;
 import com.indie.member.global.event.EventPublisher;
 import com.indie.member.global.event.MemberActivityEvent;
@@ -11,9 +12,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.util.List;
 
 @Service
 public class FollowService {
+
+    /** 내부 API 한 번에 넘기는 팔로우 수 상한 */
+    static final int MAX_SUMMARIES = 1000;
 
     private final FollowRepository followRepository;
     private final EventPublisher eventPublisher;
@@ -52,5 +57,11 @@ public class FollowService {
     public CursorPage<FollowItem> list(long userId, Cursor cursor, int size) {
         return CursorPage.of(followRepository.findPage(userId, cursor, size + 1), size,
                 r -> new Cursor(r.followedAt(), r.artistId()));
+    }
+
+    /** 내부 API — 팔로우 전부 (11/19 팔로우 탭 정렬용 · 상한 MAX_SUMMARIES) */
+    @Transactional(readOnly = true)
+    public List<FollowSummary> summaries(long userId) {
+        return followRepository.findSummaries(userId, MAX_SUMMARIES);
     }
 }

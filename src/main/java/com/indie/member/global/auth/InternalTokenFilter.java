@@ -31,6 +31,8 @@ import java.util.List;
  * ④ exp(+30초) 지남 → 401 INTERNAL_TOKEN_EXPIRED
  * ⑤ 발급자는 경로로 나눕니다 — /internal/admin/** 는 admin-issuers(studio)만, 그 밖은 allowed-issuers(gateway)만.
  *   관리자 토큰으로 토큰 발급 · 가입을 부를 수 없고, Gateway 토큰으로 관리자 조회를 부를 수 없습니다.
+ *   ✏️ 11/19 /internal/members/{id}/follows 는 follow-issuers(catalog · concert)만 — 팔로우 탭. 그 토큰으로 다른 내부 API 는 못 부릅니다.
+ *   이 경로는 팔로우 전용 포트로만 들어옵니다 (FollowsPortFilter).
  * </pre>
  * 🔴 이 필터 없이 배포되면 클러스터 안의 누구든 임의 사용자의 토큰을 발급받을 수 있습니다.
  * 🔴 X-User-Id 를 신뢰하지 않습니다 — 내부 API 의 사용자 식별은 요청 본문 값으로 합니다.
@@ -65,7 +67,10 @@ public class InternalTokenFilter extends OncePerRequestFilter {
             reject(request, response, CommonErrorCode.INTERNAL_TOKEN_REQUIRED, "missing");
             return;
         }
-        String rejected = check(token, request.getRequestURI().startsWith(ADMIN_PREFIX));
+        String path = request.getRequestURI();
+        List<String> issuers = path.startsWith(ADMIN_PREFIX) ? props.adminIssuers()
+                : FollowsPortFilter.FOLLOWS_PATH.matcher(path).matches() ? props.followIssuers() : props.allowedIssuers();
+        String rejected = check(token, issuers);
         if (rejected != null) {
             reject(request, response, "expired".equals(rejected)
                     ? CommonErrorCode.INTERNAL_TOKEN_EXPIRED : CommonErrorCode.INTERNAL_TOKEN_INVALID, rejected);
@@ -75,13 +80,12 @@ public class InternalTokenFilter extends OncePerRequestFilter {
     }
 
     /** 통과면 null — 아니면 거절 사유 (expired 만 응답 코드가 다르고 나머지는 로그로만 구분) */
-    private String check(String token, boolean adminPath) {
+    private String check(String token, List<String> issuers) {
         try {
             SignedJWT jwt = SignedJWT.parse(token);
             if (!JWSAlgorithm.HS256.equals(jwt.getHeader().getAlgorithm())) return "alg";   // ★ alg 고정
             if (!jwt.verify(verifier)) return "signature";
             JWTClaimsSet claims = jwt.getJWTClaimsSet();
-            List<String> issuers = adminPath ? props.adminIssuers() : props.allowedIssuers();
             if (claims.getIssuer() == null || !issuers.contains(claims.getIssuer())) return "issuer";
             if (claims.getAudience() == null || !claims.getAudience().contains(props.expectedAudience())) return "audience";
             Date exp = claims.getExpirationTime();

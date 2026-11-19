@@ -2,6 +2,7 @@ package com.indie.member.domain.follow.repository;
 
 import com.indie.member.domain.follow.entity.FollowEntity;
 import com.indie.member.domain.follow.entity.FollowItem;
+import com.indie.member.domain.follow.entity.FollowSummary;
 import com.indie.member.global.common.util.Cursor;
 import com.indie.member.global.common.util.CursorPredicates;
 import com.indie.member.domain.follow.entity.QFollowEntity;
@@ -54,6 +55,18 @@ public class FollowRepositoryAdapter implements FollowRepository {
                 .from(followEntity)
                 .where(followEntity.id.userId.eq(userId),
                         CursorPredicates.before(followEntity.followedAt, followEntity.id.artistId, cursor))
+                .orderBy(followEntity.followedAt.desc(), followEntity.id.artistId.desc())
+                .limit(limit)
+                .fetch();
+    }
+
+    @Override
+    public List<FollowSummary> findSummaries(long userId, int limit) {
+        QFollowEntity fans = new QFollowEntity("fans");
+        return query.select(Projections.constructor(FollowSummary.class, followEntity.id.artistId, followEntity.followedAt,
+                        JPAExpressions.select(fans.count()).from(fans).where(fans.id.artistId.eq(followEntity.id.artistId))))
+                .from(followEntity)
+                .where(followEntity.id.userId.eq(userId))
                 .orderBy(followEntity.followedAt.desc(), followEntity.id.artistId.desc())
                 .limit(limit)
                 .fetch();

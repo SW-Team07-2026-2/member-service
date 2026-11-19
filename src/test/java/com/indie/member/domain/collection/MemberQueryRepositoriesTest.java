@@ -102,6 +102,18 @@ class MemberQueryRepositoriesTest {
         assertThat(follows.countByUserId(userId)).isEqualTo(3);
     }
 
+    /** 11/19 팔로우 탭 "팔로워순" — 항목마다 그 아티스트의 전체 팔로워 수 (다른 회원 포함) */
+    @Test
+    void followItemCarriesArtistFollowerCount() {
+        follow(20, T);
+        follow(21, T.plusMinutes(1));
+        long other = newUser();
+        jdbc.update("INSERT INTO follow (user_id, artist_id) VALUES (?, 20), (?, 22)", other, other);
+
+        assertThat(follows.findPage(userId, null, 10)).extracting(FollowItem::artistId, FollowItem::followerCount)
+                .containsExactly(Tuple.tuple(21L, 1L), Tuple.tuple(20L, 2L));
+    }
+
     /** 옵션 단위 — 같은 LP 의 블랙반 · 컬러반은 2행, 같은 옵션을 다시 넣으면 무시 (UNIQUE(user_id, option_id)) */
     @Test
     void collectionIsKeptPerOptionAndAddIsIdempotent() {

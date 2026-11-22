@@ -134,6 +134,22 @@ class EventConsumerTest {
         verify(ack).acknowledge();
     }
 
+    /** 공연 변경 공지 — 라인업 팔로워 + 확정 예매자 (같은 eventId 라 겹치는 회원은 1건) */
+    @Test
+    void noticePostedNotifiesFollowersAndBookers() throws Exception {
+        concert.onNoticePosted(event("concert.notice_posted", """
+                {"concertId":55,"noticeId":3,"kind":"SCHEDULE","noticeTitle":"시간 변경","title":"펜타포트 2027",
+                 "startsAt":"2027-08-01T08:00:00Z","venueName":"송도달빛축제공원","artistIds":[9,7],"bookerUserIds":[42,43,42]}
+                """), ack);
+        String message = "펜타포트 2027 변경 공지: 시간 변경 · 8/1(일) 17:00 · 송도달빛축제공원";
+        verify(writer).fanOut(EVENT_ID, NotificationType.CONCERT_ANNOUNCED, 55, List.of(9L, 7L), message);
+        verify(writer).personal(42, EVENT_ID, NotificationType.CONCERT_ANNOUNCED, 55, message);
+        verify(writer).personal(43, EVENT_ID, NotificationType.CONCERT_ANNOUNCED, 55, message);
+        verify(writer, org.mockito.Mockito.times(2)).personal(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any());
+        verify(ack).acknowledge();
+    }
+
     /** 지금 Concert 가 보내는 booking.completed (공연명이 title · 장소 없음) 도 받습니다 */
     @Test
     void bookingEventsNotifyOwner() throws Exception {

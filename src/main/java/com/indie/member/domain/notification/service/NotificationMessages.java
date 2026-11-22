@@ -60,6 +60,11 @@ public final class NotificationMessages {
         return parts(words(title, "라인업 추가"), dayTime(startsAt), venueName);
     }
 
+    /** 펜타포트 2027 변경 공지: 시간 변경 · 8/1(토) 17:00 · 송도달빛축제공원 */
+    public static String concertNotice(String title, String noticeTitle, String startsAt, String venueName) {
+        return parts(words(title, "변경 공지:", noticeTitle), dayTime(startsAt), venueName);
+    }
+
     /** 「비적응」 LP 외 1건 주문 완료 · 52,000원 */
     public static String purchaseDone(String firstItemName, int itemCount, Long totalPrice) {
         return parts(words(items(firstItemName, itemCount), "주문 완료"), totalPrice == null ? null : won(totalPrice));

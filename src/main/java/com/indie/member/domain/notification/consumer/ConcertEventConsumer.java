@@ -20,6 +20,7 @@ import java.util.List;
  * <pre>
  * concert.created         팔로워에게  CONCERT_ANNOUNCED (페스티벌은 라인업 전체의 팔로워)
  * concert.lineup_updated  팔로워에게  CONCERT_ANNOUNCED (새로 추가된 아티스트의 팔로워만)
+ * concert.notice_posted   팔로워 + 확정 예매자에게  CONCERT_ANNOUNCED (공연 변경 공지 · 11/18 — 새 알림 종류 없이 공연 소식으로)
  * booking.completed       본인에게    BOOKING_DONE
  * booking.cancelled       본인에게    BOOKING_CANCELLED
  * </pre>
@@ -71,6 +72,32 @@ public class ConcertEventConsumer {
         notificationWriter.fanOut(e.eventId(), NotificationType.CONCERT_ANNOUNCED, e.requiredLong("concertId"), added,
                 NotificationMessages.lineupAdded(e.requiredText("title"), e.text("startsAt"), e.text("venueName")));
         ack.acknowledge();
+    }
+
+    /**
+     * 공연 변경 공지 — 라인업 팔로워(fanOut) + 확정 예매자(personal). 같은 이벤트라 둘 다인 회원도 알림은 1건입니다 (uq_user_notification_event).
+     * 예매자는 팔로우하지 않아도 받습니다.
+     */
+    @KafkaListener(topics = "concert.notice_posted")
+    public void onNoticePosted(ConsumerRecord<String, String> record, Acknowledgment ack) throws JsonProcessingException {
+        EventEnvelope e = EventEnvelope.parse(objectMapper, record.value());
+        long concertId = e.requiredLong("concertId");
+        String message = NotificationMessages.concertNotice(e.requiredText("title"), e.requiredText("noticeTitle"), e.text("startsAt"),
+                e.text("venueName"));
+        List<Long> artistIds = ids(e.payload().path("artistIds"));
+        if (!artistIds.isEmpty()) notificationWriter.fanOut(e.eventId(), NotificationType.CONCERT_ANNOUNCED, concertId, artistIds, message);
+        for (Long userId : ids(e.payload().path("bookerUserIds"))) {
+            notificationWriter.personal(userId, e.eventId(), NotificationType.CONCERT_ANNOUNCED, concertId, message);
+        }
+        ack.acknowledge();
+    }
+
+    private static List<Long> ids(JsonNode array) {
+        List<Long> ids = new ArrayList<>();
+        for (JsonNode id : array) {
+            if (id.canConvertToLong() && !ids.contains(id.asLong())) ids.add(id.asLong());
+        }
+        return ids;
     }
 
     /** 🔴 본인에게만 — 아티스트 단위로 넣으면 팔로워 전원에게 남의 예매가 보입니다 */

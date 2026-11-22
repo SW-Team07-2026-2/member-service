@@ -296,7 +296,7 @@ on conflict on constraint uq_user_notification_event do nothing
 | SINGLE_RELEASED | ALBUM | album_id | 새소년 싱글 「자유」 발매 · 11/12 |
 | PHYSICAL_ALBUM_RELEASED | PHYSICAL_ALBUM | physical_album_id | 새소년 「비적응」 LP 컬러반 판매 시작 · 45,000원 |
 | GOODS_RELEASED | GOODS | goods_id | 새소년 티셔츠 블랙 판매 시작 · 32,000원 |
-| CONCERT_ANNOUNCED | CONCERT | concert_id | 펜타포트 2027 라인업 공개 · 8/1~3 · 인천 |
+| CONCERT_ANNOUNCED | CONCERT | concert_id | 펜타포트 2027 라인업 공개 · 8/1~3 · 인천 · ✏️ 11/18 변경 공지도 같은 유형: 펜타포트 2027 변경 공지: 시간 변경 · 8/1(일) 17:00 · 송도달빛축제공원 |
 | PURCHASE_DONE | ORDER | 주문 id | 「비적응」 LP 외 1건 주문 완료 · 52,000원 |
 | PURCHASE_REFUNDED | ORDER | 주문 id | 「비적응」 LP 외 1건 환불 완료 · 52,000원 |
 | BOOKING_DONE | BOOKING | booking_id | 새소년 단독공연 예매 완료 · 12/24(목) 19:00 · 무신사 개러지 |
@@ -698,6 +698,7 @@ AI는 member의 `/internal/**`를 직접 부를 수 없습니다(member는 Gatew
 | stock.restocked | 구독 | **구독 해제** (재입고 알림 없음) |
 | concert.created | 구독 | 유지. CONCERT_ANNOUNCED, 라인업 artistIds |
 | concert.lineup_updated | 구독 | 신규. CONCERT_ANNOUNCED, 새로 추가된 아티스트(addedArtistIds)의 팔로워에게만 |
+| concert.notice_posted | 구독 | ✏️ 11/18 신규. CONCERT_ANNOUNCED — 라인업(artistIds) 팔로워 + 확정 예매자(bookerUserIds) 개인 알림. 팔로워이면서 예매자인 회원도 (user_id, event_id) 로 한 번만. 알림 유형 · 스키마 변경 없음 |
 | booking.completed | 구독 | 유지. BOOKING_DONE |
 | payment.completed | 구독 | **구독 해제** (콜렉션 자동 추가는 catalog 주문 확정으로) |
 | (신규) 피지컬 앨범·굿즈 발매, 주문 확정·환불, 예매 취소 | 구독 | 토픽 이름은 catalog·concert와 정함 (8장) |
@@ -751,6 +752,7 @@ AI는 member의 `/internal/**`를 직접 부를 수 없습니다(member는 Gatew
 - 페스티벌 라인업을 위해 `concert_artist(concert_id, artist_id, billing_order)` N:M 테이블이 필요합니다.
 - `concert.created` payload: concertId, title, type(SOLO·FESTIVAL), startsAt, venueName, **artistIds(라인업 순서대로)**
 - `concert.lineup_updated` payload: concertId, title, startsAt, venueName, artistIds(바뀐 뒤 라인업 전체), **addedArtistIds(새로 추가된 아티스트)**. 아티스트가 추가될 때만 발행합니다. 알림 문장은 「펜타포트 2027 라인업 추가 · 8/1(일) 17:00 · 송도달빛축제공원」입니다.
+- ✏️ 11/18 `concert.notice_posted` payload: concertId, noticeId, kind(SCHEDULE·VENUE·LINEUP·BOOKING·CANCEL·ETC), noticeTitle, title, startsAt, venueName, artistIds, bookerUserIds(그 공연의 확정 예매 회원). 관리자가 공지를 올릴 때만 발행 (고치기 · 지우기는 안 냄). 문장 「{공연} 변경 공지: {공지 제목} · {날짜 시각} · {공연장}」 (`NotificationMessages.concertNotice` · `ConcertEventConsumer.onNoticePosted`).
 - 예매 이벤트(완료·취소) payload: userId, bookingId, concertId, concertTitle, startsAt, venueName, amount(취소면 환불 금액). **예매 취소 이벤트는 새로 필요합니다.**
 - `user.withdrawn` 구독: PENDING 예매와 좌석 점유를 정리합니다. 확정 예매 기록은 남깁니다.
 

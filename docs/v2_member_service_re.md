@@ -145,17 +145,17 @@ INSERT만 하는 동의 이력 테이블입니다. 현재 동의 상태는 (회�
 
 | 컬럼 | 타입 | NULL·기본값 | 설명 |
 |---|---|---|---|
-| metric_id | UUID | | PK. 프론트가 만드는 UUIDv7 (재전송 중복 방지) |
+| metric_id | UUID | | PK. 프론트가 만드는 UUIDv7 (재전송 중복 방지) · 서버 기록은 이벤트에서 정한 값 (6.5) |
 | user_id | BIGINT | | FK users |
 | session_id | UUID | NULL | 방문 세션 |
 | page_view_id | UUID | NULL | 페이지 방문 |
 | target_type | VARCHAR(30) | | 대상 종류 6가지 |
-| target_id | BIGINT | | target_type별 대상 ID |
-| metric_type | VARCHAR(50) | | 행동 종류 9가지 |
+| target_id | BIGINT | NULL | target_type별 대상 ID · 11/24 SEARCH 만 NULL |
+| metric_type | VARCHAR(50) | | 행동 종류 14가지 (11/24 서버 기록 SEARCH · FOLLOW · UNFOLLOW · PURCHASE · BOOKING 추가) |
 | metric_value | BIGINT | | 횟수 또는 ms (metric_type별, 6.5) |
 | properties | JSONB | '{}' | 보조 정보 (검색어, 진입 경로) |
 | metric_version | SMALLINT | 1 | 메트릭 스키마 버전 |
-| occurred_at | TIMESTAMPTZ | | 행동 시각(클라이언트 기준) |
+| occurred_at | TIMESTAMPTZ | | 행동 시각(클라이언트 기준 · 서버 기록은 서버 시각) |
 | created_at | TIMESTAMPTZ | now() | 적재 시각 |
 
 로그인한 회원의 행동만 저장하고, 보관 기간은 **6개월**입니다.
@@ -366,11 +366,26 @@ on conflict on constraint uq_user_notification_event do nothing
 | PREVIEW_PLAY | 미리듣기를 멈추거나 끝날 때 | TRACK | 재생 시간 ms | |
 | SEARCH_CLICK | 검색 결과를 클릭할 때 | 클릭한 대상 | 결과 순위(1부터) | keyword |
 | RECOMMEND_CLICK | 추천 카드를 클릭할 때 | 전체 | 1 | source (HOME, CHAT …) |
-| CART_ADD / CART_REMOVE | 장바구니에 담거나 뺄 때 | PHYSICAL_ALBUM, GOODS | 수량 | optionId |
 | SHARE | 공유할 때 | 전체 | 1 | channel |
 | EXTERNAL_LINK_CLICK | 외부 구매처 링크를 클릭할 때 | PHYSICAL_ALBUM, GOODS | 1 | |
 
-팔로우, 콜렉션, 구매, 예매는 메트릭으로 기록하지 않습니다. 각 테이블(서비스)에 이미 정확한 원본이 있습니다.
+**서버가 남기는 메트릭 (11/24)**
+
+API 호출과 이벤트로 알 수 있는 행동은 서버가 남깁니다. 프론트가 같은 종류를 보내면 그 건만 버립니다(같은 행동을 두 번 세지 않게). 추천 · 챗봇은 위 조회 API 하나로 브라우저 행동과 서버 행동을 같이 읽습니다.
+
+| metric_type | 남기는 곳 | target_type | metric_value | properties |
+|---|---|---|---|---|
+| CART_ADD / CART_REMOVE | Catalog 장바구니 담기 · 수량 변경 · 빼기 · 비우기 → `user.metric` | PHYSICAL_ALBUM, GOODS | 늘어난 · 줄어든 수량 | optionId |
+| SEARCH | Catalog · Concert 검색 API (`/api/catalog/search/artists` · `physical-albums` · `goods`, `/api/concerts/search`) → `user.metric` | 검색한 탭 (ARTIST, PHYSICAL_ALBUM, GOODS, CONCERT) | 1 | keyword |
+| FOLLOW / UNFOLLOW | `member.activity` | ARTIST | 1 | |
+| PURCHASE | `order.confirmed` — 주문 줄(옵션)마다 | PHYSICAL_ALBUM, GOODS | 수량 | orderId, optionId |
+| BOOKING | `booking.completed` | CONCERT | 좌석 수 | bookingId |
+
+- **SEARCH는 `target_id`가 없습니다(null).** 로그인했고 검색어가 있는 첫 페이지 요청만 남깁니다. 다음 페이지 · 칩만 고른 검색 · 비로그인은 남기지 않습니다. 같은 회원 · 탭 · 검색어는 10분 구간에 한 번만 남깁니다(칩만 바꿔 다시 부르는 경우). 프론트가 입력을 잠깐 멈출 때마다 검색하므로 입력 중인 앞부분(예: "실리")도 남을 수 있습니다.
+- **소비자:** `ServerMetricConsumer`, 그룹 `member-metric`. 알림 소비자(`member-service` 그룹)와 오프셋이 따로라, 처음 뜰 때 지난 이벤트부터 읽어 보관 기간(6개월) 안의 팔로우 · 구매 · 예매를 채웁니다. 탈퇴한 회원의 이벤트는 버립니다.
+- **중복:** `user.metric`은 발행 쪽이 정한 `metricId`, 나머지는 `eventId`로 만든 UUID(`nameUUIDFromBytes`)를 씁니다. 같은 이벤트를 다시 받아도 한 번만 저장됩니다.
+- `user.metric` payload: `{ userId, metricId, targetType, targetId, metricType, metricValue, properties }`. 행동 시각은 봉투의 `occurredAt`입니다.
+- 콜렉션(보유 음반)은 메트릭으로 받지 않습니다. 주문 환불 · 예매 취소도 아직 남기지 않습니다.
 
 **AI 조회:** `GET /internal/members/{userId}/metrics`
 
@@ -704,6 +719,7 @@ AI는 member의 `/internal/**`를 직접 부를 수 없습니다(member는 Gatew
 | payment.completed | 구독 | **구독 해제** (콜렉션 자동 추가는 catalog 주문 확정으로) |
 | (신규) 피지컬 앨범·굿즈 발매, 주문 확정·환불, 예매 취소 | 구독 | 토픽 이름은 catalog·concert와 정함 (8장) |
 | user.withdrawn | **발행** | 신규 (outbox) |
+| user.metric · member.activity · order.confirmed · booking.completed | 구독 (`member-metric` 그룹) | 11/24 신규. 서버가 남기는 행동 메트릭 (6.5) |
 
 ### 이벤트 규칙
 

@@ -14,7 +14,8 @@ ALTER TABLE user_metric ADD CONSTRAINT ck_user_metric_target_type CHECK (target_
 
 ALTER TABLE user_metric ADD CONSTRAINT ck_user_metric_type CHECK (metric_type IN (                   -- MetricType
     'DETAIL_VIEW', 'DWELL', 'PREVIEW_PLAY', 'SEARCH_CLICK', 'RECOMMEND_CLICK',
-    'CART_ADD', 'CART_REMOVE', 'SHARE', 'EXTERNAL_LINK_CLICK'));
+    'CART_ADD', 'CART_REMOVE', 'SHARE', 'EXTERNAL_LINK_CLICK',
+    'SEARCH', 'FOLLOW', 'UNFOLLOW', 'PURCHASE', 'BOOKING'));
 
 -- ── ② 약관 본문 ────────────────────────────────────────────────
 -- 지난 버전도 모두 넣습니다 — 시행일(effective_at)이 지난 것 중 가장 최근 버전이 "지금 시행 중" 이라, 최신만 넣으면 시행일 전까지 약관이 없습니다.
@@ -453,7 +454,7 @@ INSERT INTO terms (code, version, title, required, effective_at, content) VALUES
 
 - 회원가입 (카카오 로그인): 카카오 회원번호, 닉네임, 이메일, 약관 동의 기록 (약관 · 버전 · 일시) — 회원 식별, 가입 · 로그인, 동의 기록
 - 서비스 이용: 팔로우한 아티스트, 장바구니, 보유 음반 — 아티스트 소식 알림, 추천
-- 서비스 이용 기록: 상세 화면 조회와 머문 시간, 미리듣기 재생, 검색 결과 · 추천 클릭, 장바구니 담기, 공유, 외부 구매처 링크 클릭 — 취향에 맞는 아티스트 · 음반 · 공연 추천
+- 서비스 이용 기록: 상세 화면 조회와 머문 시간, 미리듣기 재생, 검색어와 검색 결과 · 추천 클릭, 장바구니 담기 · 빼기, 팔로우 · 팔로우 취소, 구매 · 예매한 음반 · 굿즈 · 공연, 공유, 외부 구매처 링크 클릭 — 취향에 맞는 아티스트 · 음반 · 공연 추천
 - 공연 예매 · 굿즈 · 음반 주문: 예매 · 주문 · 결제 내역 (카드 번호 등 결제 수단 정보는 결제대행사만 보관) — 예매 · 판매, 결제 및 환불
 - 굿즈 · 음반 주문 시 배송지: 받는 분 이름, 연락처, 주소 — 배송
 - AI 챗봇 이용: 질문 내용, 챗봇 답변, 대화 시각 — 답변 및 추천, 이전 대화 이어가기

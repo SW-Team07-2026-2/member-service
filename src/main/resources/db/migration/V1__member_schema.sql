@@ -112,17 +112,17 @@ CREATE INDEX idx_user_notification_created ON user_notification(created_at);    
 
 -- ── 행동 메트릭 — 로그인 회원만 · 보관 6개월 ───────────────────
 CREATE TABLE user_metric (
-    metric_id      UUID        PRIMARY KEY,                  -- 프론트가 만드는 UUIDv7 · 다시 보내도 한 번만 저장
+    metric_id      UUID        PRIMARY KEY,                  -- 프론트가 만드는 UUIDv7 · 다시 보내도 한 번만 저장 (서버 기록은 이벤트에서 정한 값)
     user_id        BIGINT      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     session_id     UUID,
     page_view_id   UUID,
     target_type    VARCHAR(30) NOT NULL,                     -- 대상 종류 (V2 ck_user_metric_target_type)
-    target_id      BIGINT      NOT NULL,
+    target_id      BIGINT,                                   -- SEARCH 만 NULL (검색어는 properties.keyword)
     metric_type    VARCHAR(50) NOT NULL,                     -- 행동 종류 (V2 ck_user_metric_type)
     metric_value   BIGINT      NOT NULL,                     -- 횟수 또는 ms (metric_type 별)
     properties     JSONB       NOT NULL DEFAULT '{}'::jsonb,
     metric_version SMALLINT    NOT NULL DEFAULT 1,
-    occurred_at    TIMESTAMPTZ NOT NULL,                     -- 행동 시각 (클라이언트)
+    occurred_at    TIMESTAMPTZ NOT NULL,                     -- 행동 시각 (클라이언트 · 서버 기록은 서버 시각)
     created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT ck_user_metric_value CHECK (metric_value >= 0)
 );

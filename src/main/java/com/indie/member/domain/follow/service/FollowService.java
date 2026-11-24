@@ -1,11 +1,14 @@
 package com.indie.member.domain.follow.service;
 
+import com.indie.member.domain.follow.entity.ArtistFollowerCount;
 import com.indie.member.domain.follow.entity.FollowItem;
 import com.indie.member.domain.follow.entity.FollowSummary;
 import com.indie.member.domain.follow.repository.FollowRepository;
 import com.indie.member.global.event.EventPublisher;
 import com.indie.member.global.event.MemberActivityEvent;
 import com.indie.member.global.common.util.Cursor;
+import com.indie.member.global.common.exception.CommonErrorCode;
+import com.indie.member.global.common.exception.GeneralException;
 import com.indie.member.global.common.response.CursorPage;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,12 +16,16 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class FollowService {
 
     /** 내부 API 한 번에 넘기는 팔로우 수 상한 */
     static final int MAX_SUMMARIES = 1000;
+
+    /** 팔로워 수 내부 API 한 번에 받는 아티스트 수 상한 */
+    public static final int MAX_FOLLOWER_COUNT_IDS = 500;
 
     private final FollowRepository followRepository;
     private final EventPublisher eventPublisher;
@@ -63,5 +70,16 @@ public class FollowService {
     @Transactional(readOnly = true)
     public List<FollowSummary> summaries(long userId) {
         return followRepository.findSummaries(userId, MAX_SUMMARIES);
+    }
+
+    /** 내부 API — 요청한 아티스트마다 지금 팔로워 수 (요청 순서 · 중복 제거 · 팔로워가 없으면 0). 1~MAX_FOLLOWER_COUNT_IDS 개 */
+    @Transactional(readOnly = true)
+    public List<ArtistFollowerCount> followerCounts(List<Long> artistIds) {
+        List<Long> ids = artistIds.stream().distinct().toList();
+        if (ids.isEmpty() || ids.size() > MAX_FOLLOWER_COUNT_IDS) {
+            throw new GeneralException(CommonErrorCode.INVALID_REQUEST);
+        }
+        Map<Long, Long> counts = followRepository.countFollowers(ids);
+        return ids.stream().map(id -> new ArtistFollowerCount(id, counts.getOrDefault(id, 0L))).toList();
     }
 }

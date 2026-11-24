@@ -11,7 +11,10 @@ import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static com.indie.member.domain.follow.entity.QFollowEntity.followEntity;
 
@@ -70,5 +73,15 @@ public class FollowRepositoryAdapter implements FollowRepository {
                 .orderBy(followEntity.followedAt.desc(), followEntity.id.artistId.desc())
                 .limit(limit)
                 .fetch();
+    }
+
+    @Override
+    public Map<Long, Long> countFollowers(Collection<Long> artistIds) {
+        return query.select(followEntity.id.artistId, followEntity.count())
+                .from(followEntity)
+                .where(followEntity.id.artistId.in(artistIds))
+                .groupBy(followEntity.id.artistId)
+                .fetch().stream()
+                .collect(Collectors.toMap(t -> t.get(followEntity.id.artistId), t -> t.get(followEntity.count())));
     }
 }

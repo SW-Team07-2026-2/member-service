@@ -20,11 +20,15 @@ class FollowsPortFilterTest {
         assertThat(call(8181, "POST", "/internal/auth/issue")).isEqualTo(404);        // 토큰 발급
         assertThat(call(8181, "POST", "/internal/members/7/follows")).isEqualTo(404);
         assertThat(call(8181, "GET", "/internal/members/7/follows/x")).isEqualTo(404);
+        assertThat(call(8181, "GET", "/internal/artists/follower-counts")).isEqualTo(200);   // 11/24 아티스트 팔로워 수
+        assertThat(call(8181, "POST", "/internal/artists/follower-counts")).isEqualTo(404);
+        assertThat(call(8181, "GET", "/internal/artists/7")).isEqualTo(404);
     }
 
     @Test
     void mainPortHidesFollowList() throws Exception {
         assertThat(call(8081, "GET", "/internal/members/7/follows")).isEqualTo(404);
+        assertThat(call(8081, "GET", "/internal/artists/follower-counts")).isEqualTo(404);
         assertThat(call(8081, "GET", "/api/members/me")).isEqualTo(200);
         assertThat(call(8081, "POST", "/internal/auth/issue")).isEqualTo(200);
     }

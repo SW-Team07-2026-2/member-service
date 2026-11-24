@@ -103,7 +103,7 @@ class MetricControllerTest {
                 batch(EVENT.replace("\"01932c6e-7f3a-7b8e-9c1d-2f4a5b6c7d8e\"", "null")),
                 batch(EVENT.replace("01932c6e-7f3a-7b8e-9c1d-2f4a5b6c7d8e", "not-a-uuid")),
                 batch(EVENT.replace("PHYSICAL_ALBUM", "PRODUCT")),
-                batch(EVENT.replace("DETAIL_VIEW", "FOLLOW")),
+                batch(EVENT.replace("DETAIL_VIEW", "LIKE")),
                 batch(EVENT.replace("\"targetId\":31", "\"targetId\":0")),
                 batch(EVENT.replace("\"targetId\":31", "\"targetId\":null")),
                 batch(EVENT.replace("\"metricValue\":1", "\"metricValue\":-1")),
@@ -117,7 +117,7 @@ class MetricControllerTest {
     void internalQueryParsesFiltersAndReturnsAggregates() throws Exception {
         OffsetDateTime last = OffsetDateTime.parse("2026-11-12T15:30:00+09:00");
         when(service.aggregate(eq(42L), any(), any(), anyList(), anyList(), anyInt()))
-                .thenReturn(List.of(new MetricAggregate(MetricTargetType.PHYSICAL_ALBUM, 31, MetricType.DETAIL_VIEW, 12, 12, last)));
+                .thenReturn(List.of(new MetricAggregate(MetricTargetType.PHYSICAL_ALBUM, 31L, MetricType.DETAIL_VIEW, 12, 12, last)));
 
         mvc.perform(get(INTERNAL).param("from", "2026-10-01T00:00:00+09:00").param("to", "2026-11-12T00:00:00Z")
                         .param("targetType", "PHYSICAL_ALBUM,GOODS").param("metricType", "DETAIL_VIEW").param("limit", "5000"))
@@ -134,7 +134,7 @@ class MetricControllerTest {
 
     @Test
     void internalQueryReturnsRawRowsWhenAggregateIsFalse() throws Exception {
-        MetricRow row = new MetricRow(UUID.fromString("01932c6e-7f3a-7b8e-9c1d-2f4a5b6c7d8e"), MetricTargetType.TRACK, 880,
+        MetricRow row = new MetricRow(UUID.fromString("01932c6e-7f3a-7b8e-9c1d-2f4a5b6c7d8e"), MetricTargetType.TRACK, 880L,
                 MetricType.PREVIEW_PLAY, 28000, "{\"from\":\"HOME\"}", OffsetDateTime.parse("2026-11-12T15:31:10+09:00"));
         when(service.rows(eq(42L), isNull(), isNull(), isNull(), isNull(), isNull(), eq(100)))
                 .thenReturn(new CursorPage<>(List.of(row), null, false));
@@ -149,7 +149,7 @@ class MetricControllerTest {
 
     @Test
     void internalQueryRejectsUnknownEnumAndBadCursor() throws Exception {
-        mvc.perform(get(INTERNAL).param("metricType", "FOLLOW")).andExpect(status().isBadRequest())
+        mvc.perform(get(INTERNAL).param("metricType", "LIKE")).andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
         mvc.perform(get(INTERNAL).param("from", "어제")).andExpect(status().isBadRequest());
         mvc.perform(get(INTERNAL).param("aggregate", "false").param("cursor", "###")).andExpect(status().isBadRequest())

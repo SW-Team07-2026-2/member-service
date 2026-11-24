@@ -456,6 +456,7 @@ on conflict on constraint uq_user_notification_event do nothing
 | GET `/internal/members/{id}/profile` | 응답에서 `roles`, `status` 제거 |
 | GET `/internal/members/{userId}/metrics` | **신규** AI용. AI는 Gateway `GET /ingest/members/{userId}/metrics`로 호출 (HMAC) |
 | GET, PUT `/internal/members/{userId}/embedding` | **신규** AI용. AI는 Gateway `GET`, `PUT /ingest/members/{userId}/embedding`으로 호출 (HMAC) |
+| GET `/internal/artists/follower-counts?artistIds=1,2` | **신규(11/24)** Catalog `artist.follower_count` 갱신용. `{ items: [{ artistId, followerCount }] }` 요청 순서 · 팔로워가 없으면 0 · 1~500개(넘으면 400). 팔로우 전용 포트 8181 · 내부 토큰 `iss` 는 catalog · concert 만 (`/internal/members/{userId}/follows` 와 같은 규칙 · `FollowsPortFilter`) |
 | GET `/internal/admin/members?q=` · GET `/internal/admin/members/{id}` | **신규(11/13)** 관리자(Studio CS)용 회원 검색 · 조회. 내부 토큰의 `iss`가 `studio`일 때만 |
 | GET `/.well-known/jwks.json` | 유지 |
 

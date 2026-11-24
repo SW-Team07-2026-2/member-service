@@ -4,7 +4,9 @@ import com.indie.member.domain.follow.entity.FollowItem;
 import com.indie.member.domain.follow.entity.FollowSummary;
 import com.indie.member.global.common.util.Cursor;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /** 팔로우 저장소 포트 — 구현은 FollowRepositoryAdapter */
 public interface FollowRepository {
@@ -24,4 +26,7 @@ public interface FollowRepository {
 
     /** 내부 API — 한 회원의 팔로우 전부 · (followed_at, artist_id) 내림차순 · 최대 limit 건 */
     List<FollowSummary> findSummaries(long userId, int limit);
+
+    /** 내부 API — 아티스트별 팔로워 수. 팔로워가 없는 아티스트는 빠집니다 (idx_follow_artist) */
+    Map<Long, Long> countFollowers(Collection<Long> artistIds);
 }

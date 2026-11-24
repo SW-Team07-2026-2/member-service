@@ -85,6 +85,8 @@ class InternalTokenFilterTest {
         assertThat(call(token(SECRET, "catalog", "member", 300), "/internal/auth/issue").getStatus()).isEqualTo(401);
         assertThat(call(token(SECRET, "catalog", "member", 300), "/internal/members/7/metrics").getStatus()).isEqualTo(401);
         assertThat(call(token(SECRET, "gateway", "member", 300), "/internal/members/7/follows").getStatus()).isEqualTo(401);
+        assertThat(call(token(SECRET, "catalog", "member", 300), "/internal/artists/follower-counts").getStatus()).isEqualTo(200);
+        assertThat(call(token(SECRET, "gateway", "member", 300), "/internal/artists/follower-counts").getStatus()).isEqualTo(401);
     }
 
     @Test

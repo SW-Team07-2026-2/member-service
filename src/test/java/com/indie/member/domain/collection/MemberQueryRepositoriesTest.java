@@ -128,6 +128,17 @@ class MemberQueryRepositoriesTest {
         assertThat(follows.findSummaries(userId, 1)).hasSize(1);
     }
 
+    /** 11/24 내부 API — 아티스트별 전체 팔로워 수 (다른 회원 포함) · 팔로워가 없는 아티스트는 빠짐 */
+    @Test
+    void countFollowersGroupsByArtist() {
+        follow(40, T);
+        follow(41, T);
+        long other = newUser();
+        jdbc.update("INSERT INTO follow (user_id, artist_id) VALUES (?, 40)", other);
+
+        assertThat(follows.countFollowers(List.of(40L, 41L, 42L))).containsExactlyInAnyOrderEntriesOf(Map.of(40L, 2L, 41L, 1L));
+    }
+
     /** 옵션 단위 — 같은 LP 의 블랙반 · 컬러반은 2행, 같은 옵션을 다시 넣으면 무시 (UNIQUE(user_id, option_id)) */
     @Test
     void collectionIsKeptPerOptionAndAddIsIdempotent() {

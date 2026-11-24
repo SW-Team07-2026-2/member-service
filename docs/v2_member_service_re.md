@@ -220,7 +220,7 @@ DB는 `VARCHAR + CHECK`로, 코드는 Java enum(`@Enumerated(STRING)`)으로 둡
 | 파일 | 들어 있는 것 |
 |---|---|
 | `V1__member_schema.sql` | 테이블 10개, PK · FK · UNIQUE, 인덱스, 구조 CHECK 2개(`ck_chat_message_content` · `ck_user_metric_value`) |
-| `V2__member_values.sql` | ① 값 목록 CHECK 4개: `ck_chat_message_role` · `ck_user_notification_type` · `ck_user_metric_target_type` · `ck_user_metric_type` (4장의 enum과 같은 목록) ② 약관 본문 9행: v1(AGE14 · TOS · PRIVACY · MARKETING · PRIVACY_POLICY), v2(PRIVACY · PRIVACY_POLICY), v3(PRIVACY · PRIVACY_POLICY) |
+| `V2__member_values.sql` | ① 값 목록 CHECK 4개: `ck_chat_message_role` · `ck_user_notification_type` · `ck_user_metric_target_type` · `ck_user_metric_type` (4장의 enum과 같은 목록) ② 약관 본문 10행: v1(AGE14 · TOS · PRIVACY · MARKETING · PRIVACY_POLICY), v2(PRIVACY · PRIVACY_POLICY), v3(PRIVACY · PRIVACY_POLICY), v4(PRIVACY_POLICY · 11/24 추가 · 12-01 시행 — GA 회원 번호 · 추천 목적 · 보관 14개월) |
 
 - 약관은 지난 버전까지 모두 넣습니다. 시행일(`effective_at`)이 지난 것 중 가장 최근 버전이 "지금 시행 중"이라, v3(11-21 시행)만 넣으면 그 전까지 시행 중인 약관이 없어 가입이 막힙니다.
 - 값 목록을 넣거나 빼면 V2와 Java enum을 함께 고칩니다. `MemberSchemaValuesTest`가 둘을 대조합니다.

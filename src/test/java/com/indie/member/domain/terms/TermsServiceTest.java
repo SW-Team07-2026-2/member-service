@@ -167,6 +167,22 @@ class TermsServiceTest {
         assertThat(policy.getContent()).contains("Google Analytics").doesNotContain("추적 쿠키는 사용하지 않습니다");
     }
 
+    /** 처리방침 v4 (GA 회원 번호 · 추천 목적 · 보관 14개월) 는 7일 공지 뒤 2026-12-01 시행 · 동의 문서(PRIVACY)는 v3 그대로 */
+    @Test
+    void analyticsMemberIdNoticeTakesEffectOnDecember1() {
+        List<TermsCode> codes = List.of(TermsCode.PRIVACY, TermsCode.PRIVACY_POLICY);
+
+        assertThat(repository.findCurrent(codes, OffsetDateTime.parse("2026-11-30T23:59:59+09:00")))
+                .extracting(TermsEntity::getVersion).containsOnly("v3");
+
+        List<TermsEntity> current = repository.findCurrent(codes, OffsetDateTime.parse("2026-12-01T00:00:00+09:00"));
+        assertThat(current).extracting(t -> t.getCode() + " " + t.getVersion())
+                .containsExactlyInAnyOrder("PRIVACY v3", "PRIVACY_POLICY v4");
+        TermsEntity policy = current.stream().filter(t -> t.getCode() == TermsCode.PRIVACY_POLICY).findFirst().orElseThrow();
+        assertThat(policy.getContent()).contains("서비스 회원 번호", "14개월", "BigQuery", "2026년 12월 1일")
+                .doesNotContain("Google Analytics 데이터 보관 기간 설정값");
+    }
+
     /** 새 버전이 시행되면 옛 id 는 409 · 시행 전(공지 기간)이면 옛 버전이 그대로 현재 */
     @Test
     void newVersionReplacesOldOnlyAfterEffectiveAt() {

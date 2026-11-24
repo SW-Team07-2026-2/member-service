@@ -66,7 +66,7 @@ class MemberSchemaValuesTest {
     void allTermsVersionsAreSeeded() {
         assertThat(jdbc.queryForList("SELECT code || ' ' || version FROM terms ORDER BY id", String.class)).containsExactly(
                 "AGE14 v1", "TOS v1", "PRIVACY v1", "MARKETING v1", "PRIVACY_POLICY v1",
-                "PRIVACY v2", "PRIVACY_POLICY v2", "PRIVACY v3", "PRIVACY_POLICY v3");
+                "PRIVACY v2", "PRIVACY_POLICY v2", "PRIVACY v3", "PRIVACY_POLICY v3", "PRIVACY_POLICY v4");
     }
 
     private static Set<String> names(Enum<?>[] values) {

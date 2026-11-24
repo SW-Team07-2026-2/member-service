@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 행동 메트릭 — 프론트가 보낸 회원의 행동을 저장하고(6개월), AI 에는 회원 단위로 걸러서 내려줍니다.
+ * 행동 메트릭 — 프론트가 보낸 회원의 행동과 서버가 API 호출 · 이벤트로 남긴 행동을 저장하고(6개월), AI 에는 회원 단위로 걸러서 내려줍니다.
  * AI 가 member DB 를 직접 읽지 않습니다 (docs/v2_member_service_re.md §6.5).
  */
 @Service
@@ -56,7 +56,7 @@ public class MetricService {
     /**
      * 수집 — 저장된 수를 돌려줍니다. 이미 저장된 metricId 와 시각 범위를 벗어난 행동은 수에서 빠집니다.
      * 형식 오류는 요청 전체를 400 으로 거절하지만 (컨트롤러 검증), 시각만 벗어난 행동은 그 건만 버립니다 —
-     * 시계가 틀어진 클라이언트가 묶음 전체를 잃지 않게.
+     * 시계가 틀어진 클라이언트가 묶음 전체를 잃지 않게. 서버만 기록하는 종류(MetricType.server)도 그 건만 버립니다.
      */
     @Transactional
     public int collect(long userId, List<MetricEvent> events) {
@@ -66,13 +66,27 @@ public class MetricService {
         OffsetDateTime latest = now.plus(MAX_FUTURE);
         List<NewMetric> accepted = new ArrayList<>();
         for (MetricEvent e : events) {
-            if (e.occurredAt().isBefore(oldest) || e.occurredAt().isAfter(latest)) {
+            if (e.metricType().server() || e.occurredAt().isBefore(oldest) || e.occurredAt().isAfter(latest)) {
                 continue;
             }
             accepted.add(new NewMetric(e.metricId(), e.sessionId(), e.pageViewId(), e.targetType(), e.targetId(),
                     e.metricType(), e.metricValue(), json(e.properties()), e.occurredAt()));
         }
         return metricRepository.insertIgnore(userId, accepted);
+    }
+
+    /**
+     * 서버 기록 (ServerMetricConsumer) — metricId 는 이벤트에서 정한 값이라 다시 받아도 한 번만 저장됩니다.
+     * 탈퇴한 회원(행 없음)이면 0 — 새 소비자 그룹은 지난 이벤트부터 읽어서 탈퇴 회원의 이벤트가 섞여 옵니다.
+     * 보관 기간(6개월)보다 오래된 행동도 버립니다 (넣어도 MetricRetentionJob 이 지웁니다).
+     */
+    @Transactional
+    public int record(long userId, List<NewMetric> metrics) {
+        if (!userRepository.existsById(userId)) {
+            return 0;
+        }
+        OffsetDateTime oldest = OffsetDateTime.now(clock).minusMonths(RETENTION_MONTHS);
+        return metricRepository.insertIgnore(userId, metrics.stream().filter(m -> m.occurredAt().isAfter(oldest)).toList());
     }
 
     /** AI 용 — (대상, 행동 종류)별 합계 */

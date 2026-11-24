@@ -7,6 +7,7 @@ import com.indie.member.domain.metric.dto.response.MetricRow;
 import com.indie.member.domain.metric.entity.MetricTargetType;
 import com.indie.member.domain.metric.entity.MetricType;
 import com.indie.member.domain.metric.repository.MetricCursor;
+import com.indie.member.domain.metric.repository.MetricRepository.NewMetric;
 import com.indie.member.domain.metric.repository.MetricRepositoryAdapter;
 import com.indie.member.domain.metric.service.MetricService;
 import com.indie.member.global.common.exception.GeneralException;
@@ -114,6 +115,35 @@ class MetricPersistenceTest {
         assertCode(() -> service.collect(Long.MAX_VALUE, List.of(event(MetricTargetType.ARTIST, 1, MetricType.SHARE, 1, null, now))),
                 "NOT_FOUND");
         assertCode(() -> service.aggregate(Long.MAX_VALUE, null, null, null, null, 10), "NOT_FOUND");
+    }
+
+    /** 11/24 서버만 기록하는 종류는 프론트가 보내도 그 건만 버림 — 같은 행동을 두 번 세지 않게 */
+    @Test
+    void collectDropsServerOnlyTypes() {
+        MetricEvent cart = event(MetricTargetType.GOODS, 40, MetricType.CART_ADD, 1, null, now);
+        MetricEvent view = event(MetricTargetType.GOODS, 40, MetricType.DETAIL_VIEW, 1, null, now);
+
+        assertThat(service.collect(userId, List.of(cart, view))).isEqualTo(1);
+        assertThat(jdbc.queryForList("SELECT metric_type FROM user_metric WHERE user_id = ?", String.class, userId))
+                .containsExactly("DETAIL_VIEW");
+    }
+
+    /** 11/24 서버 기록 — 같은 metricId 는 한 번 · 검색어는 target_id 없음 · 탈퇴 회원은 0 (FK 오류 없음) · 6개월 넘은 행동은 버림 */
+    @Test
+    void recordSavesServerMetrics() {
+        NewMetric search = new NewMetric(UUID.randomUUID(), null, null, MetricTargetType.ARTIST, null, MetricType.SEARCH, 1,
+                "{\"keyword\":\"새소년\"}", now);
+        NewMetric old = new NewMetric(UUID.randomUUID(), null, null, MetricTargetType.CONCERT, 6L, MetricType.BOOKING, 2,
+                "{}", now.minusMonths(7));
+
+        assertThat(service.record(userId, List.of(search, old))).isEqualTo(1);
+        assertThat(service.record(userId, List.of(search))).isZero();
+        assertThat(service.record(Long.MAX_VALUE, List.of(search))).isZero();
+
+        assertThat(jdbc.queryForMap("SELECT target_type, target_id, properties->>'keyword' AS keyword FROM user_metric WHERE user_id = ?",
+                userId)).containsEntry("target_type", "ARTIST").containsEntry("target_id", null).containsEntry("keyword", "새소년");
+        assertThat(service.rows(userId, null, null, null, List.of(MetricType.SEARCH), null, 10).items())
+                .extracting(MetricRow::targetId).containsExactly((Long) null);
     }
 
     /** AI 조회 — (대상, 행동 종류)별 count · sum · 마지막 시각. 합이 큰 순. 기간 · 종류로 거릅니다 */

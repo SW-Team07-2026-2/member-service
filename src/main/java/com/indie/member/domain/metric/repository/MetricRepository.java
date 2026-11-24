@@ -25,7 +25,7 @@ public interface MetricRepository {
     int deleteOccurredBefore(OffsetDateTime cutoff, int limit);
 
     /** properties 는 JSON 객체 문자열 */
-    record NewMetric(UUID id, UUID sessionId, UUID pageViewId, MetricTargetType targetType, long targetId,
+    record NewMetric(UUID id, UUID sessionId, UUID pageViewId, MetricTargetType targetType, Long targetId,
                      MetricType metricType, long metricValue, String properties, OffsetDateTime occurredAt) {}
 
     /** from 이상 to 미만 · 종류 목록이 비어 있으면 전체 */

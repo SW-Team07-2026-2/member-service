@@ -183,6 +183,21 @@ class TermsServiceTest {
                 .doesNotContain("Google Analytics 데이터 보관 기간 설정값");
     }
 
+    /** 이용약관 v2 (소개 글의 위키백과 출처 · CC BY-SA 4.0 제8조) 는 7일 공지 뒤 2026-12-02 시행 · 나머지 조항은 v1 그대로 */
+    @Test
+    void wikipediaSourceClauseTakesEffectOnDecember2() {
+        List<TermsCode> codes = List.of(TermsCode.TOS);
+
+        assertThat(repository.findCurrent(codes, OffsetDateTime.parse("2026-12-01T23:59:59+09:00")))
+                .extracting(TermsEntity::getVersion).containsOnly("v1");
+
+        TermsEntity tos = repository.findCurrent(codes, OffsetDateTime.parse("2026-12-02T00:00:00+09:00")).get(0);
+        assertThat(tos.getVersion()).isEqualTo("v2");
+        assertThat(tos.isRequired()).isTrue();
+        assertThat(tos.getContent()).contains("제7조 (약관의 변경)", "제8조 (소개 글의 출처)", "한국어 위키백과", "CC BY-SA 4.0",
+                "2026년 12월 2일부터").doesNotContain("2026년 11월 5일부터");
+    }
+
     /** 새 버전이 시행되면 옛 id 는 409 · 시행 전(공지 기간)이면 옛 버전이 그대로 현재 */
     @Test
     void newVersionReplacesOldOnlyAfterEffectiveAt() {

@@ -3,6 +3,7 @@ package com.indie.member.global.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.indie.member.global.auth.FollowsPortFilter;
 import org.apache.catalina.connector.Connector;
+import org.apache.coyote.AbstractProtocol;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory;
 import org.springframework.boot.web.server.WebServerFactoryCustomizer;
@@ -19,10 +20,13 @@ import org.springframework.core.Ordered;
 public class FollowsPortConfig {
 
     @Bean
-    public WebServerFactoryCustomizer<TomcatServletWebServerFactory> followsConnector(@Value("${app.follows-port}") int port) {
+    public WebServerFactoryCustomizer<TomcatServletWebServerFactory> followsConnector(@Value("${app.follows-port}") int port,
+                                                                                    @Value("${app.follows-port-max-threads}") int maxThreads) {
         return factory -> {
             Connector connector = new Connector(TomcatServletWebServerFactory.DEFAULT_PROTOCOL);
             connector.setPort(port);
+            // ✏️ 11/26 직접 만든 커넥터는 server.tomcat.threads.max 를 받지 않아 톰캣 기본 200 이었습니다
+            ((AbstractProtocol<?>) connector.getProtocolHandler()).setMaxThreads(maxThreads);
             factory.addAdditionalTomcatConnectors(connector);
         };
     }

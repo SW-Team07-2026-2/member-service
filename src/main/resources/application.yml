@@ -78,6 +78,7 @@ springdoc:
 
 app:
   follows-port: 8181                          # 11/19 팔로우 전용 포트 — /internal/members/{id}/follows 만 (Catalog · Concert 는 NetworkPolicy 로 이 포트에만 허용)
+  follows-port-max-threads: 20                # ✏️ 11/26 8181 스레드 상한 — 팔로우 목록 조회(짧은 DB 읽기)만 받고 DB 풀(10)을 8081 과 나눠 쓰므로 풀의 2배까지만
   token:
     at-ttl-seconds: 1800
     rt-ttl-seconds: 1209600

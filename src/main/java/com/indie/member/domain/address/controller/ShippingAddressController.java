@@ -46,20 +46,20 @@ public class ShippingAddressController {
         return ApiResponse.onSuccess(addressService.add(userId, request));
     }
 
-    @PutMapping("/{id}")
-    public ApiResponse<ShippingAddressView> update(@CurrentUser Long userId, @PathVariable @Positive long id,
+    @PutMapping("/{addressId}")
+    public ApiResponse<ShippingAddressView> update(@CurrentUser Long userId, @PathVariable @Positive long addressId,
                                                    @Valid @RequestBody ShippingAddressRequest request) {
-        return ApiResponse.onSuccess(addressService.update(userId, id, request));
+        return ApiResponse.onSuccess(addressService.update(userId, addressId, request));
     }
 
-    @PostMapping("/{id}/default")
-    public ApiResponse<ShippingAddressView> makeDefault(@CurrentUser Long userId, @PathVariable @Positive long id) {
-        return ApiResponse.onSuccess(addressService.makeDefault(userId, id));
+    @PostMapping("/{addressId}/default")
+    public ApiResponse<ShippingAddressView> makeDefault(@CurrentUser Long userId, @PathVariable @Positive long addressId) {
+        return ApiResponse.onSuccess(addressService.makeDefault(userId, addressId));
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@CurrentUser Long userId, @PathVariable @Positive long id) {
-        addressService.delete(userId, id);
+    @DeleteMapping("/{addressId}")
+    public ResponseEntity<Void> delete(@CurrentUser Long userId, @PathVariable @Positive long addressId) {
+        addressService.delete(userId, addressId);
         return ResponseEntity.noContent().build();
     }
 }

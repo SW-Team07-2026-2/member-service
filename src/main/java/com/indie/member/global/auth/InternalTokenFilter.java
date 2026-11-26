@@ -31,7 +31,7 @@ import java.util.List;
  * ④ exp(+30초) 지남 → 401 INTERNAL_TOKEN_EXPIRED
  * ⑤ 발급자는 경로로 나눕니다 — /internal/admin/** 는 admin-issuers(studio)만, 그 밖은 allowed-issuers(gateway)만.
  *   관리자 토큰으로 토큰 발급 · 가입을 부를 수 없고, Gateway 토큰으로 관리자 조회를 부를 수 없습니다.
- *   ✏️ 11/19 /internal/members/{id}/follows 는 follow-issuers(catalog · concert)만 — 팔로우 탭. 그 토큰으로 다른 내부 API 는 못 부릅니다.
+ *   ✏️ 11/19 /internal/members/{userId}/follows 는 follow-issuers(catalog · concert)만 — 팔로우 탭. 그 토큰으로 다른 내부 API 는 못 부릅니다.
  *   이 경로는 팔로우 전용 포트로만 들어옵니다 (FollowsPortFilter).
  * </pre>
  * 🔴 이 필터 없이 배포되면 클러스터 안의 누구든 임의 사용자의 토큰을 발급받을 수 있습니다.

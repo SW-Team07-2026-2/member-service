@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * GET /internal/members/{id}/profile — Gateway 의 /api/auth/me 용 (§7-4).
+ * GET /internal/members/{userId}/profile — Gateway 의 /api/auth/me 용 (§7-4).
  * 🔴 모든 사용자의 앱 로드마다 발생합니다. PK 단건 조회만 — 조인 · 집계를 추가하지 마세요.
  */
 @RestController
@@ -21,9 +21,9 @@ public class InternalProfileController {
         this.userService = userService;
     }
 
-    @GetMapping("/internal/members/{id}/profile")
-    public ApiResponse<ProfileResponse> profile(@PathVariable long id) {
-        UserEntity u = userService.get(id);
+    @GetMapping("/internal/members/{userId}/profile")
+    public ApiResponse<ProfileResponse> profile(@PathVariable long userId) {
+        UserEntity u = userService.get(userId);
         return ApiResponse.onSuccess(new ProfileResponse(u.getId(), u.getNickname(), u.getProfileImageUrl()));
     }
 }

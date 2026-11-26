@@ -45,10 +45,10 @@ public class NotificationController {
     }
 
     /** 단건 읽음 — 알림을 눌렀을 때. 멱등 (이미 읽은 알림도 200) */
-    @PostMapping("/{id}/read")
-    public ApiResponse<Map<String, Object>> read(@CurrentUser Long userId, @PathVariable @Positive long id) {
-        notificationService.markRead(userId, id);
-        return ApiResponse.onSuccess(Map.of("notificationId", id, "isRead", true));
+    @PostMapping("/{notificationId}/read")
+    public ApiResponse<Map<String, Object>> read(@CurrentUser Long userId, @PathVariable @Positive long notificationId) {
+        notificationService.markRead(userId, notificationId);
+        return ApiResponse.onSuccess(Map.of("notificationId", notificationId, "isRead", true));
     }
 
     /** 전체 읽음 */

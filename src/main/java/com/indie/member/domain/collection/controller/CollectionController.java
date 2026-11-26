@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 공개 API 15 · 16 — 보유 음반 (피지컬 앨범의 옵션 단위).
- * GET /{id} 는 16종 밖이지만 DoD #16(남의 id 로 조회 → 404)을 검증할 경로로 둡니다.
+ * GET /{collectionId} 는 16종 밖이지만 DoD #16(남의 id 로 조회 → 404)을 검증할 경로로 둡니다.
  */
 @RestController
 @Validated
@@ -44,9 +44,9 @@ public class CollectionController {
         return ApiResponse.onSuccess(collectionService.list(userId, Cursor.decode(cursor), pageSize.resolve(size)));
     }
 
-    @GetMapping("/{id}")
-    public ApiResponse<CollectionItem> get(@CurrentUser Long userId, @PathVariable @Positive long id) {
-        return ApiResponse.onSuccess(collectionService.get(userId, id));
+    @GetMapping("/{collectionId}")
+    public ApiResponse<CollectionItem> get(@CurrentUser Long userId, @PathVariable @Positive long collectionId) {
+        return ApiResponse.onSuccess(collectionService.get(userId, collectionId));
     }
 
     @PostMapping
@@ -54,9 +54,9 @@ public class CollectionController {
         return ApiResponse.onSuccess(collectionService.add(userId, request.physicalAlbumId(), request.optionId(), request.acquiredAt()));
     }
 
-    @DeleteMapping("/{id}")
-    public ApiResponse<Void> delete(@CurrentUser Long userId, @PathVariable @Positive long id) {
-        collectionService.delete(userId, id);
+    @DeleteMapping("/{collectionId}")
+    public ApiResponse<Void> delete(@CurrentUser Long userId, @PathVariable @Positive long collectionId) {
+        collectionService.delete(userId, collectionId);
         return ApiResponse.onSuccess(null);
     }
 }

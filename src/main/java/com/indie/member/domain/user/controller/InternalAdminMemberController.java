@@ -40,8 +40,8 @@ public class InternalAdminMemberController {
     }
 
     /** 회원 한 명 — 없으면(탈퇴 포함) 404 */
-    @GetMapping("/internal/admin/members/{id}")
-    public ApiResponse<AdminMemberResponse> detail(@PathVariable @Positive long id) {
-        return ApiResponse.onSuccess(AdminMemberResponse.detail(userService.get(id)));
+    @GetMapping("/internal/admin/members/{userId}")
+    public ApiResponse<AdminMemberResponse> detail(@PathVariable @Positive long userId) {
+        return ApiResponse.onSuccess(AdminMemberResponse.detail(userService.get(userId)));
     }
 }

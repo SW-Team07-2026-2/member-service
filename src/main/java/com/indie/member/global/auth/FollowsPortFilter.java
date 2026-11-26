@@ -19,7 +19,7 @@ import java.util.regex.Pattern;
 /**
  * 11/19 팔로우 전용 포트 — NetworkPolicy 는 경로를 못 거르므로 포트로 나눕니다.
  * <pre>
- * 팔로우 전용 포트(app.follows-port) — GET /internal/members/{id}/follows · GET /internal/artists/follower-counts(11/24) 만. 나머지는 404
+ * 팔로우 전용 포트(app.follows-port) — GET /internal/members/{userId}/follows · GET /internal/artists/follower-counts(11/24) 만. 나머지는 404
  * 그 밖의 포트(8081)              — 이 두 경로는 404 (Catalog · Concert 는 전용 포트로만)
  * </pre>
  * 🔴 8081 은 X-User-Id 를 믿으므로 Gateway 전용입니다 (member NetworkPolicy). Catalog · Concert 는 전용 포트에만 허용되어,

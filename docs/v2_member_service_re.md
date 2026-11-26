@@ -456,23 +456,23 @@ API 호출과 이벤트로 알 수 있는 행동은 서버가 남깁니다. 프�
 | DELETE `/api/members/me` | **신규** 회원 탈퇴 |
 | `/api/members/me/addresses/**` | 유지 |
 | `/api/members/follows/**` | 유지 |
-| GET, GET `/{id}`, POST `/api/members/collections` | 요청·응답을 `physicalAlbumId`, `optionId` 기준으로 변경 (상세 아래) |
-| DELETE `/api/members/collections/{id}` | **신규** 콜렉션 삭제 |
+| GET, GET `/{collectionId}`, POST `/api/members/collections` | 요청·응답을 `physicalAlbumId`, `optionId` 기준으로 변경 (상세 아래) |
+| DELETE `/api/members/collections/{collectionId}` | **신규** 콜렉션 삭제 |
 | `/api/members/wishlist/**` | **삭제** (catalog `/api/cart/**`) |
 | GET `/api/members/feed` | **삭제** (팔로잉 소식은 알림으로) |
 | GET `/api/members/notifications` | 응답 필드 변경. 나의 알림과 아티스트 소식을 한 목록으로 (상세 아래) |
 | GET `/api/members/notifications/badge` | 유지 (안 읽은 수) |
-| POST `/api/members/notifications/{id}/read` | **신규** 단건 읽음 |
+| POST `/api/members/notifications/{notificationId}/read` | **신규** 단건 읽음 |
 | POST `/api/members/notifications/read` | 의미 변경: 전체 읽음(`is_read` 일괄 UPDATE) |
 | `/api/members/terms/**`, `/api/members/me/agreements/**` | 유지 |
 | GET, POST `/api/members/me/chat-history` | 유지. 409 `ACCOUNT_WITHDRAWN` 제거 |
 | POST `/api/members/me/metrics` | **신규** 메트릭 수집 |
 | `/internal/auth/**` | 유지. `roles`는 `["USER"]` 고정 |
-| GET `/internal/members/{id}/profile` | 응답에서 `roles`, `status` 제거 |
+| GET `/internal/members/{userId}/profile` | 응답에서 `roles`, `status` 제거 |
 | GET `/internal/members/{userId}/metrics` | **신규** AI용. AI는 Gateway `GET /ingest/members/{userId}/metrics`로 호출 (HMAC) |
 | GET, PUT `/internal/members/{userId}/embedding` | **신규** AI용. AI는 Gateway `GET`, `PUT /ingest/members/{userId}/embedding`으로 호출 (HMAC) |
 | GET `/internal/artists/follower-counts?artistIds=1,2` | **신규(11/24)** Catalog `artist.follower_count` 갱신용. `{ items: [{ artistId, followerCount }] }` 요청 순서 · 팔로워가 없으면 0 · 1~500개(넘으면 400). 팔로우 전용 포트 8181 · 내부 토큰 `iss` 는 catalog · concert 만 (`/internal/members/{userId}/follows` 와 같은 규칙 · `FollowsPortFilter`) |
-| GET `/internal/admin/members?q=` · GET `/internal/admin/members/{id}` | **신규(11/13)** 관리자(Studio CS)용 회원 검색 · 조회. 내부 토큰의 `iss`가 `studio`일 때만 |
+| GET `/internal/admin/members?q=` · GET `/internal/admin/members/{userId}` | **신규(11/13)** 관리자(Studio CS)용 회원 검색 · 조회. 내부 토큰의 `iss`가 `studio`일 때만 |
 | GET `/.well-known/jwks.json` | 유지 |
 
 ### API 상세 (신규·변경)
@@ -481,7 +481,7 @@ API 호출과 이벤트로 알 수 있는 행동은 서버가 남깁니다. 프�
 - 목록은 커서 페이지 형식 `{ items, nextCursor, hasNext }`이고, `?cursor=&size=`를 받습니다. size의 기본값과 최대값은 기존 `PageSize` 설정을 따릅니다.
 - 에러코드는 아래 "에러코드" 표를 따릅니다.
 
-#### 알림 단건 읽음: `POST /api/members/notifications/{id}/read`
+#### 알림 단건 읽음: `POST /api/members/notifications/{notificationId}/read`
 
 | 항목 | 내용 |
 |---|---|
@@ -567,9 +567,9 @@ API 호출과 이벤트로 알 수 있는 행동은 서버가 남깁니다. 프�
 | API | 요청 | 응답 |
 |---|---|---|
 | `GET /api/members/collections?cursor=&size=` | | `items: [{ id, physicalAlbumId, optionId, source, acquiredAt }]` |
-| `GET /api/members/collections/{id}` | | 항목 1개 |
+| `GET /api/members/collections/{collectionId}` | | 항목 1개 |
 | `POST /api/members/collections` (CSRF) | `{ "physicalAlbumId": 12, "optionId": 31, "acquiredAt": "2026-11-01" }` (`acquiredAt` 생략 시 오늘) | 저장된 항목 |
-| `DELETE /api/members/collections/{id}` (CSRF) | | `result: null` |
+| `DELETE /api/members/collections/{collectionId}` (CSRF) | | `result: null` |
 
 - 이미 등록한 옵션을 다시 등록하면 기존 항목을 그대로 돌려줍니다(200). 같은 요청을 여러 번 보내도 결과가 같습니다.
 - 삭제는 직접 등록(MANUAL)과 구매 자동 추가(PURCHASE) 모두 할 수 있습니다.
@@ -617,14 +617,14 @@ API 호출과 이벤트로 알 수 있는 행동은 서버가 남깁니다. 프�
 
 에러: 401 `INTERNAL_TOKEN_*`, 400 `INVALID_REQUEST`, 404 `NOT_FOUND`
 
-#### 관리자(Studio)용 회원 조회: `GET /internal/admin/members`, `GET /internal/admin/members/{id}`
+#### 관리자(Studio)용 회원 조회: `GET /internal/admin/members`, `GET /internal/admin/members/{userId}`
 
 Studio의 CS 화면이 부릅니다(Studio 문서 6.6). Gateway를 거치지 않고 Studio가 member를 직접 부릅니다.
 
 | API | 요청 | 응답 |
 |---|---|---|
 | GET `/internal/admin/members?q=&size=` | `q` 필수(1~255자). 회원 번호 일치 · 이메일 일치(대소문자 무시) · 닉네임 부분 일치 | `[{ "userId", "email", "provider", "nickname", "profileImageUrl", "createdAt" }]` 최근 가입순, 기본 20 · 최대 50건. **이메일은 가려서**(`ab***@example.com`) |
-| GET `/internal/admin/members/{id}` | | 같은 모양 1건, 이메일 전체. 없는 회원(탈퇴 포함)은 404 |
+| GET `/internal/admin/members/{userId}` | | 같은 모양 1건, 이메일 전체. 없는 회원(탈퇴 포함)은 404 |
 
 - 내주는 것은 본인 확인에 필요한 값뿐입니다. 배송지 · 동의 이력 · 대화 · 행동 기록 · 벡터는 내주지 않습니다.
 - 조회만 있습니다. 회원 정보 수정과 탈퇴는 회원 본인만 합니다.
@@ -779,7 +779,7 @@ AI는 member의 `/internal/**`를 직접 부를 수 없습니다(member는 Gatew
 
 ### Studio (관리자)
 
-- CS 화면의 회원 검색 · 조회는 `GET /internal/admin/members?q=` · `GET /internal/admin/members/{id}`입니다(7장). 내부 토큰은 `{iss: studio, aud: member}`입니다.
+- CS 화면의 회원 검색 · 조회는 `GET /internal/admin/members?q=` · `GET /internal/admin/members/{userId}`입니다(7장). 내부 토큰은 `{iss: studio, aud: member}`입니다.
 - 🔴 운영에서는 member의 NetworkPolicy가 Studio(`app: studio`)를 아직 허용하지 않습니다. Studio 매니페스트를 만들 때 함께 엽니다(KT 클라우드 준비 뒤 · Studio 문서 9장).
 
 ### AI (chatbot-service)
@@ -819,7 +819,7 @@ AI는 member의 `/internal/**`를 직접 부를 수 없습니다(member는 Gatew
 - **피드:** `/api/members/feed`가 없어집니다. 팔로잉 소식은 알림 목록에서 보여줍니다.
 - **알림:** 나의 알림과 아티스트 소식을 **한 탭, 한 목록**(최신순)으로 보여줍니다.
   - 응답 항목: `{ id, type, target, targetId, artistId, message, isRead, createdAt }`
-  - 알림을 누르면 `POST /api/members/notifications/{id}/read`(7장 상세)를 호출하고, `target`과 `targetId`로 이동합니다. 404가 오면 목록에서 그 알림을 지웁니다.
+  - 알림을 누르면 `POST /api/members/notifications/{notificationId}/read`(7장 상세)를 호출하고, `target`과 `targetId`로 이동합니다. 404가 오면 목록에서 그 알림을 지웁니다.
 
     | target | 이동 화면 |
     |---|---|
@@ -839,7 +839,7 @@ AI는 member의 `/internal/**`를 직접 부를 수 없습니다(member는 Gatew
   - 페이지를 떠날 때는 **`fetch(..., { keepalive: true })`**를 쓰고 `X-XSRF-TOKEN` 헤더를 붙입니다. `navigator.sendBeacon`은 헤더를 붙일 수 없어서 CSRF 검사에 걸립니다.
   - 실패하거나 429가 오면 버퍼에 남겨 두고 다음 전송 때 같은 `metricId`로 다시 보냅니다. 버퍼는 최대 200개입니다. 429는 회원당 분당 30회를 넘었을 때 옵니다.
   - `occurredAt`은 오프셋이 붙은 ISO-8601 형식으로 보냅니다.
-- **콜렉션:** 등록할 때 피지컬 앨범과 옵션(블랙·컬러·기본)을 반드시 고르게 합니다. 구매가 확정되면 자동으로 추가됩니다. 삭제 API(`DELETE /api/members/collections/{id}`)가 생깁니다. 응답에는 ID만 있으니 이름과 이미지는 catalog에서 조회합니다.
+- **콜렉션:** 등록할 때 피지컬 앨범과 옵션(블랙·컬러·기본)을 반드시 고르게 합니다. 구매가 확정되면 자동으로 추가됩니다. 삭제 API(`DELETE /api/members/collections/{collectionId}`)가 생깁니다. 응답에는 ID만 있으니 이름과 이미지는 catalog에서 조회합니다.
 - **프로필:** `GET /api/members/me`에서 `wishlistCount`가 빠집니다. Gateway `/api/auth/me`의 `roles`는 항상 `["USER"]`입니다.
 - **탈퇴:** `DELETE /api/members/me` (7장 상세). 바로 모든 데이터가 삭제되고, 결제 대기 중인 주문이나 예매는 취소된다고 탈퇴 전에 안내합니다. 성공하면 Gateway가 응답에서 인증 쿠키를 지우므로, 프론트는 로그아웃 상태 화면으로 전환합니다(메모리에 들고 있던 CSRF 토큰도 버립니다). 같은 계정으로 다시 가입하면 새 계정이 됩니다.
 - **챗봇:** 탈퇴 409 응답은 없어집니다.

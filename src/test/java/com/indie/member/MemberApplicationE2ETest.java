@@ -121,6 +121,8 @@ class MemberApplicationE2ETest {
         assertThat(claims.getStringListClaim("roles")).containsExactly("USER");
 
         // ── 프로필: 내부 프로필에 roles, status 없음, 내 정보에 wishlistCount 없음
+        assertThat(ok(internal(get("/internal/members/" + userId + "/exists"))).asBoolean()).isTrue();
+        assertThat(code(get("/internal/members/" + userId + "/exists"), 401)).isEqualTo("INTERNAL_TOKEN_REQUIRED");
         JsonNode profile = ok(internal(get("/internal/members/" + userId + "/profile")));
         assertThat(profile.path("userId").asLong()).isEqualTo(userId);
         assertThat(profile.has("roles")).isFalse();
@@ -202,6 +204,7 @@ class MemberApplicationE2ETest {
 
         // ── 탈퇴: 회원 행과 member 의 회원 데이터가 모두 사라지고 user.withdrawn 이 남습니다
         ok(user(delete("/api/members/me"), userId));
+        assertThat(ok(internal(get("/internal/members/" + userId + "/exists"))).asBoolean()).isFalse();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE id = ?", Long.class, userId)).isZero();
         for (String table : List.of("user_terms", "follow", "collection", "chat_message", "user_notification", "user_metric")) {
             assertThat(jdbc.queryForObject("SELECT count(*) FROM " + table + " WHERE user_id = ?", Long.class, userId)).as(table).isZero();

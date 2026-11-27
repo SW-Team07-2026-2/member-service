@@ -18,6 +18,12 @@ public class InternalProfileController {
         this.userService = userService;
     }
 
+    /** Gateway -> Member 회원 존재 확인. 탈퇴 반영이 지연되지 않도록 캐시하지 않습니다. */
+    @GetMapping("/internal/members/{userId}/exists")
+    public ApiResponse<Boolean> exists(@PathVariable long userId) {
+        return ApiResponse.onSuccess(userService.exists(userId));
+    }
+
     /**
      * Gateway에 필요한 닉네임과 프로필 주소를 반환합니다.
      *

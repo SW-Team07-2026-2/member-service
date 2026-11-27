@@ -48,11 +48,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
 /**
- * 애플리케이션 전체(빈 연결 · 필터 · JSON 설정 · Flyway V1 · V2)를 띄워 v2 흐름을 한 번 끝까지 따라갑니다
- * (docs/v2_member_service_re.md). PostgreSQL · Redis 는 Testcontainers, Kafka 는 띄우지 않습니다 —
+ * 애플리케이션 전체(빈 연결, 필터, JSON 설정, Flyway V1, V2)를 띄워 v2 흐름을 한 번 끝까지 따라갑니다
+ * (docs/v2_member_service_re.md). PostgreSQL, Redis 는 Testcontainers, Kafka 는 띄우지 않습니다 -
  * 리스너를 끄고 컨슈머 메서드를 직접 부릅니다. Docker 가 없으면 건너뜁니다.
  * <pre>
- * 가입(roles=USER) → 프로필 → 알림 복사 · 읽음 → 메트릭 수집 · AI 조회 → 벡터 → 콜렉션 → 대화 → 탈퇴(전부 삭제) → 재가입
+ * 가입(roles=USER) -> 프로필 -> 알림 복사, 읽음 -> 메트릭 수집, AI 조회 -> 벡터 -> 콜렉션 -> 대화 -> 탈퇴(전부 삭제) -> 재가입
  * </pre>
  */
 @Testcontainers(disabledWithoutDocker = true)
@@ -60,7 +60,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
         "spring.kafka.bootstrap-servers=localhost:9092",
         "spring.kafka.listener.auto-startup=false",
         "app.token.active-kid=test-key",
-        "app.outbox.relay-interval-ms=3600000",          // 기동 직후 한 번만 — Kafka 가 없어 발행을 시도하지 않게
+        "app.outbox.relay-interval-ms=3600000",          // 기동 직후 한 번만 - Kafka 가 없어 발행을 시도하지 않게
         "internal.shared-secret=" + MemberApplicationE2ETest.INTERNAL_SECRET,
         "signup.token-secret=0123456789abcdef0123456789abcdef-signup"
 })
@@ -102,7 +102,7 @@ class MemberApplicationE2ETest {
     void memberLifecycleFromSignupToWithdrawalAndRejoin() throws Exception {
         String providerUid = UUID.randomUUID().toString();
 
-        // ── 가입: 처음 로그인이면 사인업 토큰만 → 밴드 고르기 · 약관 동의 뒤 회원 생성
+        // ── 가입: 처음 로그인이면 사인업 토큰만 -> 밴드 고르기, 약관 동의 뒤 회원 생성
         JsonNode issued = ok(internal(post("/internal/auth/issue")).content(json(Map.of(
                 "provider", "KAKAO", "providerUid", providerUid, "nickname", "새벽"))));
         assertThat(issued.path("newUser").asBoolean()).isTrue();
@@ -112,13 +112,13 @@ class MemberApplicationE2ETest {
         long userId = signedUp.path("userId").asLong();
         String refreshToken = signedUp.path("refreshToken").asText();
 
-        // ── 역할: DB 에 컬럼이 없고 토큰 · 응답의 roles 는 항상 ["USER"]
+        // ── 역할: DB 에 컬럼이 없고 토큰, 응답의 roles 는 항상 ["USER"]
         assertThat(mapper.convertValue(signedUp.path("roles"), List.class)).containsExactly("USER");
         JWTClaimsSet claims = SignedJWT.parse(signedUp.path("accessToken").asText()).getJWTClaimsSet();
         assertThat(claims.getSubject()).isEqualTo(String.valueOf(userId));
         assertThat(claims.getStringListClaim("roles")).containsExactly("USER");
 
-        // ── 프로필: 내부 프로필에 roles · status 없음, 내 정보에 wishlistCount 없음
+        // ── 프로필: 내부 프로필에 roles, status 없음, 내 정보에 wishlistCount 없음
         JsonNode profile = ok(internal(get("/internal/members/" + userId + "/profile")));
         assertThat(profile.path("userId").asLong()).isEqualTo(userId);
         assertThat(profile.has("roles")).isFalse();
@@ -149,7 +149,7 @@ class MemberApplicationE2ETest {
         assertThat(notifications.get(1).path("createdAt").isTextual()).isTrue();          // ISO-8601 문자열
         assertThat(badge(userId)).isEqualTo(2);
 
-        // ── 읽음: 단건 → 배지 1, 전체 → 배지 0. 없는 알림은 404
+        // ── 읽음: 단건 -> 배지 1, 전체 -> 배지 0. 없는 알림은 404
         long newsId = notifications.get(1).path("id").asLong();
         JsonNode read = ok(user(post("/api/members/notifications/" + newsId + "/read"), userId));
         assertThat(read.path("notificationId").asLong()).isEqualTo(newsId);
@@ -159,7 +159,7 @@ class MemberApplicationE2ETest {
         ok(user(post("/api/members/notifications/read"), userId));
         assertThat(badge(userId)).isZero();
 
-        // ── 행동 메트릭: 수집(다시 보내도 한 번만) → AI 조회(내부 토큰)
+        // ── 행동 메트릭: 수집(다시 보내도 한 번만) -> AI 조회(내부 토큰)
         Map<String, Object> view = Map.of("metricId", UUID.randomUUID().toString(), "targetType", "PHYSICAL_ALBUM", "targetId", 31,
                 "metricType", "DETAIL_VIEW", "metricValue", 1, "properties", Map.of("from", "HOME"),
                 "occurredAt", OffsetDateTime.now().toString());
@@ -174,7 +174,7 @@ class MemberApplicationE2ETest {
         JsonNode rows = ok(internal(get("/internal/members/" + userId + "/metrics")).param("aggregate", "false")).path("items");
         assertThat(rows.get(0).path("properties").path("from").asText()).isEqualTo("HOME");
 
-        // ── 회원 벡터: TEXT 로 저장 · 조회 (내부 토큰), 형식이 아니면 400
+        // ── 회원 벡터: TEXT 로 저장, 조회 (내부 토큰), 형식이 아니면 400
         JsonNode savedEmbedding = ok(internal(put("/internal/members/" + userId + "/embedding"))
                 .content(json(Map.of("embedding", "[0.0123,-0.0456,0.0789]"))));
         assertThat(savedEmbedding.path("dimension").asInt()).isEqualTo(3);
@@ -183,7 +183,7 @@ class MemberApplicationE2ETest {
         assertThat(code(internal(put("/internal/members/" + userId + "/embedding")).content(json(Map.of("embedding", "0.1,0.2"))), 400))
                 .isEqualTo("INVALID_REQUEST");
 
-        // ── 콜렉션: 옵션 단위 등록 → 삭제
+        // ── 콜렉션: 옵션 단위 등록 -> 삭제
         JsonNode collected = ok(user(post("/api/members/collections"), userId)
                 .content(json(Map.of("physicalAlbumId", 12, "optionId", 31))));
         assertThat(collected.path("optionId").asLong()).isEqualTo(31);

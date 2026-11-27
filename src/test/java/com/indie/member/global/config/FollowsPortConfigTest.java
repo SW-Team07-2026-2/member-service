@@ -7,7 +7,7 @@ import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactor
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 팔로우 전용 포트(8181)도 스레드 상한을 받는지 — 따로 만든 커넥터는 server.tomcat.threads.max 를 받지 않습니다 */
+/** 팔로우 전용 포트(8181)도 스레드 상한을 받는지 - 따로 만든 커넥터는 server.tomcat.threads.max 를 받지 않습니다 */
 class FollowsPortConfigTest {
 
     @Test

@@ -1,6 +1,6 @@
--- RT 회전 · 재사용 탐지 (RedisRefreshTokenStore.rotate) — 탭 2개가 동시에 갱신해도 한쪽만 성공
--- KEYS[1] auth:rt:{oldHash}   KEYS[2] auth:rt:used:{oldHash}
--- ARGV[1] oldHash   ARGV[2] newHash   ARGV[3] issuedAt   ARGV[4] RT TTL   ARGV[5] used 표시 TTL
+-- RT 회전, 재사용 탐지 (RedisRefreshTokenStore.rotate) - 탭 2개가 동시에 갱신해도 한쪽만 성공
+-- KEYS[1] auth:rt:{oldHash} KEYS[2] auth:rt:used:{oldHash}
+-- ARGV[1] oldHash ARGV[2] newHash ARGV[3] issuedAt ARGV[4] RT TTL ARGV[5] used 표시 TTL
 -- 반환 {OK|INVALID|REUSED, userId}
 local v = redis.call('GET', KEYS[1])
 if not v then

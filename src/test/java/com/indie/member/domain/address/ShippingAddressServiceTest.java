@@ -27,8 +27,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Flyway 스키마 위에서 배송지 규칙 — 기본 1개 · 10개 제한 · 남의 배송지. Docker 가 없으면 건너뜁니다.
- * 테스트 트랜잭션을 끄고 서비스 호출마다 커밋합니다 — 요청마다 영속성 컨텍스트가 새로 시작되는 운영과 같게
+ * Flyway 스키마 위에서 배송지 규칙 - 기본 1개, 10개 제한, 남의 배송지. Docker 가 없으면 건너뜁니다.
+ * 테스트 트랜잭션을 끄고 서비스 호출마다 커밋합니다 - 요청마다 영속성 컨텍스트가 새로 시작되는 운영과 같게
  */
 @Testcontainers(disabledWithoutDocker = true)
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=validate")
@@ -59,7 +59,7 @@ class ShippingAddressServiceTest {
                 Long.class, UUID.randomUUID().toString());
     }
 
-    /** 첫 배송지는 자동으로 기본 · 그다음은 요청해야 기본 */
+    /** 첫 배송지는 자동으로 기본, 그다음은 요청해야 기본 */
     @Test
     void firstAddressBecomesDefault() {
         ShippingAddressView first = service.add(userId, address("집", null));
@@ -70,7 +70,7 @@ class ShippingAddressServiceTest {
         assertThat(service.list(userId)).extracting(ShippingAddressView::label).containsExactly("집", "회사");
     }
 
-    /** ★ 기본 전환 — 추가 · 수정 · 지정 어느 경로로든 기본은 1개 (부분 UNIQUE 를 넘지 않음) */
+    /** 기본 전환 - 추가, 수정, 지정 어느 경로로든 기본은 1개 (부분 UNIQUE 를 넘지 않음) */
     @Test
     void onlyOneDefault() {
         ShippingAddressView home = service.add(userId, address("집", null));

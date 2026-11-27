@@ -20,7 +20,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-/** 11/24 서버 메트릭 — 이벤트 payload 를 user_metric 행으로 바꾸는 부분만 봅니다 (저장은 MetricPersistenceTest) */
+/** 서버 메트릭 - 이벤트 payload 를 user_metric 행으로 바꾸는 부분만 봅니다 (저장은 MetricPersistenceTest) */
 class ServerMetricConsumerTest {
 
     private static final UUID EVENT_ID = UUID.fromString("0193261a-7b9c-7d3e-8f4a-5b6c7d8e9f01");
@@ -30,7 +30,7 @@ class ServerMetricConsumerTest {
     private final Acknowledgment ack = mock(Acknowledgment.class);
     private final ServerMetricConsumer consumer = new ServerMetricConsumer(service, new ObjectMapper());
 
-    /** Catalog · Concert 가 정한 metricId 그대로 · 검색어는 target_id 없음 */
+    /** Catalog, Concert 가 정한 metricId 그대로, 검색어는 target_id 없음 */
     @Test
     void userMetricKeepsPublisherMetricId() throws Exception {
         UUID metricId = UUID.randomUUID();
@@ -64,7 +64,7 @@ class ServerMetricConsumerTest {
         verify(ack).acknowledge();
     }
 
-    /** 주문 줄마다 한 건 — 피지컬 앨범과 굿즈를 대상 종류로 나눔 */
+    /** 주문 줄마다 한 건 - 피지컬 앨범과 굿즈를 대상 종류로 나눔 */
     @Test
     void orderConfirmedRecordsEachLine() throws Exception {
         consumer.onOrderConfirmed(event("order.confirmed", """

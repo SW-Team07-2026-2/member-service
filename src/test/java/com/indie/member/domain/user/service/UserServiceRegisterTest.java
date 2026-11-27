@@ -150,7 +150,9 @@ class UserServiceRegisterTest {
         jdbc.update("INSERT INTO user_metric (metric_id, user_id, target_type, target_id, metric_type, metric_value, occurred_at) "
                 + "VALUES (?, ?, 'ARTIST', 1, 'DETAIL_VIEW', 1, now())", UUID.randomUUID(), userId);
 
+        assertThat(service.exists(userId)).isTrue();
         service.delete(userId);
+        assertThat(service.exists(userId)).isFalse();
 
         assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE id = ?", Long.class, userId)).isZero();
         for (String table : List.of("shipping_address", "user_terms", "follow", "collection", "chat_message",

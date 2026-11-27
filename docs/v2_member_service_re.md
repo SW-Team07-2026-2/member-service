@@ -403,11 +403,8 @@ API 호출과 이벤트로 알 수 있는 행동은 서버가 남깁니다. 프�
 
 ### 6.6 회원 벡터
 
-- `users.embedding`은 **TEXT**입니다. AI 담당자가 차원을 아직 정하지 못했기 때문입니다.
-- 저장 형식은 **pgvector 텍스트 형식**입니다: `'[0.0123,-0.0456,…]'`. 차원이 정해지면 값을 그대로 둔 채 한 줄로 전환합니다.
-  ```sql
-  ALTER TABLE users ALTER COLUMN embedding TYPE vector(N) USING embedding::vector(N);
-  ```
+- `users.embedding`은 **TEXT**로 유지합니다. 모델은 선정됐으며 추천 서비스가 모델과 차원을 관리합니다.
+- 저장 형식은 숫자 배열 문자열입니다: `'[0.0123,-0.0456,...]'`. 컬럼 형식 전환은 예정하지 않습니다.
 - 쓰기: `PUT /internal/members/{userId}/embedding`. `[숫자,…]` 형식인지만 검사하고(개수는 검사하지 않음), `embedding_updated_at`을 갱신합니다.
 - 읽기: `GET /internal/members/{userId}/embedding`.
 - AI는 두 API를 Gateway의 서명 경로 `/ingest/members/{userId}/embedding`으로 부릅니다(7장 "AI가 호출하는 방법").
@@ -613,7 +610,7 @@ API 호출과 이벤트로 알 수 있는 행동은 서버가 남깁니다. 프�
 | PUT | `{ "embedding": "[0.0123,-0.0456,…]" }` | `{ "userId": 42, "dimension": 1536, "updatedAt": "…" }` |
 | GET | | `{ "userId": 42, "embedding": "[…]" 또는 null, "updatedAt": "…" 또는 null }` |
 
-- 검사: 텍스트가 `[숫자,숫자,…]` 형식인지만 확인합니다(NaN, Infinity는 받지 않음). **숫자 개수는 검사하지 않습니다.** 이 형식이어야 나중에 `vector(N)`으로 한 줄 전환이 됩니다.
+- 검사: 텍스트가 `[숫자,숫자,…]` 형식인지만 확인합니다(NaN, Infinity는 받지 않음). **숫자 개수는 검사하지 않습니다.**
 
 에러: 401 `INTERNAL_TOKEN_*`, 400 `INVALID_REQUEST`, 404 `NOT_FOUND`
 
@@ -785,7 +782,7 @@ AI는 member의 `/internal/**`를 직접 부를 수 없습니다(member는 Gatew
 ### AI (chatbot-service)
 
 - 회원 벡터와 메트릭은 **Gateway의 서명 경로**로 부릅니다. 주소·헤더·서명·에러는 7장 "AI가 호출하는 방법"에 있습니다.
-  - 회원 벡터: `PUT`/`GET /ingest/members/{userId}/embedding`. pgvector 텍스트 형식이고, 차원과 모델은 AI가 관리합니다. 차원이 정해지면 member가 `vector(N)`으로 전환합니다.
+  - 회원 벡터: `PUT`/`GET /ingest/members/{userId}/embedding`. pgvector 텍스트 형식이고, 차원과 모델은 AI가 관리합니다. Member는 TEXT 저장을 유지합니다.
   - 메트릭: `GET /ingest/members/{userId}/metrics` (6.5의 파라미터). 원본 이벤트보다 `aggregate=true`를 권장합니다.
   - **회원 데이터 키가 따로 필요합니다.** 수집기가 쓰는 수집 키로는 열리지 않습니다. 키 ID와 값은 인프라 담당과 정해 Gateway에 `ingest.member-keys.<키 ID>`로 넣습니다(12장).
   - 🔴 2026-11-13 운영 기준 이 키가 Gateway에 마운트되어 있지 않아(기동 로그 `ingest_keys_missing keys=ingest.member-keys`) `/ingest/members/**`는 전부 401입니다. 챗봇도 아직 이 경로를 부르지 않습니다.
@@ -960,7 +957,6 @@ v2 구현 뒤에 남아 있던, 이름만 남았거나 아무도 쓰지 않는 �
 
 | 항목 | 담당 |
 |---|---|
-| 벡터 차원 확정 → `vector(N)`으로 전환(실데이터가 없으면 V1 수정 + 스키마 다시 올리기, 있으면 V3 이후 파일). 운영 DB에 pgvector 확장 설치(DBA) | AI, member, DBA |
 | ~~피지컬·굿즈·주문·예매 이벤트 구현, 토픽 이름 확정~~ ✅ 11/13 catalog v2(`physical_album.released` · `goods.released` · `order.confirmed` · `order.refunded`) · concert v2(`booking.cancelled`) 배포, 토픽은 manifests `topics-job`에 있음 | catalog, concert |
 | `user.withdrawn` 구독 구현 — ✅ catalog · concert 11/13 배포, **AI(챗봇) 남음** | AI |
 | 회원 데이터 키 발급 → Gateway Deployment에 `ingest.member-keys.<키 ID>` 마운트 → AI에 같은 값 전달. catalog·concert 리팩토링 뒤에 함께 진행합니다(11/13 결정). 순서는 Secret 적용 → `deployment.yaml`의 `items` 추가 머지입니다. 반대로 하면 Secret에 없는 키를 마운트하려다 Gateway Pod가 뜨지 않습니다 | 인프라, AI |
@@ -977,7 +973,7 @@ v2 구현 뒤에 남아 있던, 이름만 남았거나 아무도 쓰지 않는 �
 - **Gateway에 회원 데이터 키가 없으면 AI 경로는 전부 401입니다.** `ingest.member-keys.<키 ID>` 시크릿을 만들어 Gateway Deployment에 마운트해야 합니다(수집 키 `ingest.keys.crawler-*`와 같은 방식, 매니페스트 저장소 작업). 키가 없어도 Gateway 기동과 다른 경로에는 영향이 없습니다. 키 세팅은 catalog·concert 리팩토링 뒤에 함께 합니다(11.2).
 - ~~catalog에 `/api/cart/**` API가 아직 없습니다.~~ ✅ 11/13 catalog v2와 함께 배포했습니다.
 - ~~catalog는 새로 수집한 앨범마다 `album.released`를 보냅니다.~~ ✅ catalog v2는 발매일이 최근 30일 이내일 때만 보냅니다(`app.event.release-window-days`).
-- 약관 v3 시행일 `2026-11-21`은 임시로 잡은 값입니다. 배포일 기준 7일 공지에 맞는지 확인하고, 다르면 V2를 고치고 스키마를 다시 올립니다(적용된 파일만 고치면 체크섬 검증에 걸립니다. 5장).
+- 개인정보처리방침 v3 시행일은 `2026-11-21`로 확정되었습니다. 적용된 SQL/Flyway 파일은 수정하지 않습니다.
 - ~~새 토픽은 아직 발행하는 서비스가 없습니다.~~ ✅ 11/13 catalog · concert v2가 발행합니다. 실제 Kafka를 거친 알림 · 콜렉션 자동 추가는 운영에서 아직 확인하지 않았습니다(데이터가 없음).
 
 **아직 정하지 않은 것**

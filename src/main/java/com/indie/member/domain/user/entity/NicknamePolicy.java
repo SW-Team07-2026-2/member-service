@@ -7,13 +7,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ThreadLocalRandom;
 
-/** 닉네임 규칙 - 2~10자, 공백, 제어문자 거부, 금칙어 1종. 중복은 허용합니다 (식별자는 id) */
+/** 닉네임 규칙 - 2~10자, 공백, 제어문자 거부, 금칙어 거부. 중복은 허용합니다 (식별자는 id) */
 public final class NicknamePolicy {
 
     static final int MIN = 2;
     static final int MAX = 10;
 
-    // TODO(결정대기): 금칙어 목록 - 10개 내외 하드코딩 (§19-4)
+    // 닉네임에 사용할 수 없는 운영자 명칭과 비속어
     private static final List<String> BANNED = List.of(
             "관리자", "운영자", "운영팀", "고객센터", "admin", "official", "공식", "시발", "씨발", "병신");
 

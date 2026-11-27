@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
-/** 공개 API 1 · 2 — 내 프로필 · 탈퇴 */
+/** 로그인한 프론트 -> Gateway -> Member 본인 프로필 조회, 수정과 회원 탈퇴 API. */
 @RestController
 @RequestMapping("/api/members/me")
 public class MemberController {
@@ -29,6 +29,11 @@ public class MemberController {
         this.withdrawalService = withdrawalService;
     }
 
+    /**
+     * 회원 본인의 프로필을 조회합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     */
     @GetMapping
     public ApiResponse<MeResponse> me(@CurrentUser Long userId) {
         UserService.MyProfile p = userService.me(userId);
@@ -36,8 +41,10 @@ public class MemberController {
     }
 
     /**
-     * 닉네임 변경. Gateway 의 /api/auth/me 는 5분 캐시라 최대 5분 늦게 보입니다 —
-     * 즉시 반영이 필요하면 프론트가 이 응답 뒤에 /api/auth/me 를 다시 호출합니다.
+     * 회원 본인의 닉네임을 변경합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param request 변경할 회원 닉네임
      */
     @PatchMapping
     public ApiResponse<Map<String, Object>> update(@CurrentUser Long userId, @RequestBody MemberUpdateRequest request) {
@@ -46,8 +53,9 @@ public class MemberController {
     }
 
     /**
-     * 회원 탈퇴 — 바로 삭제합니다 (막는 조건 없음 · 같은 계정으로 다시 가입하면 새 회원).
-     * 인증 쿠키는 Gateway 가 관리합니다 — 이 응답이 200 이면 Gateway 가 쿠키를 지웁니다.
+     * 회원 탈퇴와 연관 데이터 정리를 요청합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
      */
     @DeleteMapping
     public ApiResponse<Void> withdraw(@CurrentUser Long userId) {

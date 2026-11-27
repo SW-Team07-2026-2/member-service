@@ -25,14 +25,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 행동 메트릭 — 프론트가 보낸 회원의 행동과 서버가 API 호출 · 이벤트로 남긴 행동을 저장하고(6개월), AI 에는 회원 단위로 걸러서 내려줍니다.
- * AI 가 member DB 를 직접 읽지 않습니다 (docs/v2_member_service_re.md §6.5).
- */
+/** 회원 행동을 6개월간 보관하고 회원별 원본 또는 집계 결과를 제공합니다. AI는 이 API를 통해 조회합니다. */
 @Service
 public class MetricService {
 
-    /** 클라이언트 시계는 믿을 수 없습니다 — 받은 시각 기준 이 범위를 벗어난 행동은 그 건만 버립니다 */
+    /** 클라이언트 시계는 믿을 수 없습니다 - 받은 시각 기준 이 범위를 벗어난 행동은 그 건만 버립니다 */
     private static final Duration MAX_PAST = Duration.ofHours(24);
     private static final Duration MAX_FUTURE = Duration.ofMinutes(5);
     private static final int MAX_PROPERTIES_LENGTH = 2000;
@@ -54,9 +51,12 @@ public class MetricService {
     }
 
     /**
-     * 수집 — 저장된 수를 돌려줍니다. 이미 저장된 metricId 와 시각 범위를 벗어난 행동은 수에서 빠집니다.
-     * 형식 오류는 요청 전체를 400 으로 거절하지만 (컨트롤러 검증), 시각만 벗어난 행동은 그 건만 버립니다 —
+     * 수집 - 저장된 수를 돌려줍니다. 이미 저장된 metricId 와 시각 범위를 벗어난 행동은 수에서 빠집니다.
+     * 형식 오류는 요청 전체를 400 으로 거절하지만 (컨트롤러 검증), 시각만 벗어난 행동은 그 건만 버립니다 -
      * 시계가 틀어진 클라이언트가 묶음 전체를 잃지 않게. 서버만 기록하는 종류(MetricType.server)도 그 건만 버립니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param events 수집할 행동 묶음
      */
     @Transactional
     public int collect(long userId, List<MetricEvent> events) {
@@ -76,9 +76,12 @@ public class MetricService {
     }
 
     /**
-     * 서버 기록 (ServerMetricConsumer) — metricId 는 이벤트에서 정한 값이라 다시 받아도 한 번만 저장됩니다.
-     * 탈퇴한 회원(행 없음)이면 0 — 새 소비자 그룹은 지난 이벤트부터 읽어서 탈퇴 회원의 이벤트가 섞여 옵니다.
+     * 서버 기록 (ServerMetricConsumer) - metricId 는 이벤트에서 정한 값이라 다시 받아도 한 번만 저장됩니다.
+     * 탈퇴한 회원(행 없음)이면 0 - 새 소비자 그룹은 지난 이벤트부터 읽어서 탈퇴 회원의 이벤트가 섞여 옵니다.
      * 보관 기간(6개월)보다 오래된 행동도 버립니다 (넣어도 MetricRetentionJob 이 지웁니다).
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param metrics 저장할 서버 행동 목록
      */
     @Transactional
     public int record(long userId, List<NewMetric> metrics) {
@@ -89,7 +92,16 @@ public class MetricService {
         return metricRepository.insertIgnore(userId, metrics.stream().filter(m -> m.occurredAt().isAfter(oldest)).toList());
     }
 
-    /** AI 용 — (대상, 행동 종류)별 합계 */
+    /**
+     * AI 용 - (대상, 행동 종류)별 합계
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param from 조회 시작 시각
+     * @param to 조회 종료 시각
+     * @param targetTypes 조회할 행동 대상 종류
+     * @param metricTypes 조회할 행동 종류
+     * @param limit 최대 조회 개수
+     */
     @Transactional(readOnly = true)
     public List<MetricAggregate> aggregate(long userId, OffsetDateTime from, OffsetDateTime to,
                                            List<MetricTargetType> targetTypes, List<MetricType> metricTypes, int limit) {
@@ -97,7 +109,17 @@ public class MetricService {
         return metricRepository.aggregate(userId, filter(from, to, targetTypes, metricTypes), limit);
     }
 
-    /** AI 용 — 원본 행 (커서 페이지) */
+    /**
+     * AI 용 - 원본 행 (커서 페이지)
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param from 조회 시작 시각
+     * @param to 조회 종료 시각
+     * @param targetTypes 조회할 행동 대상 종류
+     * @param metricTypes 조회할 행동 종류
+     * @param cursor 다음 조회 시작점을 나타내는 커서
+     * @param limit 최대 조회 개수
+     */
     @Transactional(readOnly = true)
     public CursorPage<MetricRow> rows(long userId, OffsetDateTime from, OffsetDateTime to,
                                       List<MetricTargetType> targetTypes, List<MetricType> metricTypes,
@@ -110,7 +132,7 @@ public class MetricService {
         return new CursorPage<>(items, hasNext ? new MetricCursor(last.occurredAt(), last.metricId()).encode() : null, hasNext);
     }
 
-    /** 기간 — to 가 없으면 지금, from 이 없으면 to 의 30일 전. 보관 기간(6개월)보다 긴 범위는 400 */
+    /** 기간 - to 가 없으면 지금, from 이 없으면 to 의 30일 전. 보관 기간(6개월)보다 긴 범위는 400 */
     private Filter filter(OffsetDateTime from, OffsetDateTime to, List<MetricTargetType> targetTypes, List<MetricType> metricTypes) {
         OffsetDateTime end = to == null ? OffsetDateTime.now(clock) : to;
         OffsetDateTime start = from == null ? end.minusDays(DEFAULT_RANGE_DAYS) : from;

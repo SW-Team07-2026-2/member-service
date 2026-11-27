@@ -9,7 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-/** 챗봇 장기기억 — 회원당 최근 50개 메시지. 넘으면 오래된 것부터 지웁니다 (chat_message) */
+/** 챗봇 장기기억 - 회원당 최근 50개 메시지. 넘으면 오래된 것부터 지웁니다 (chat_message) */
 @Service
 public class ChatHistoryService {
 
@@ -21,7 +21,11 @@ public class ChatHistoryService {
         this.repository = repository;
     }
 
-    /** 탈퇴한 회원은 행이 없으므로 404 */
+    /**
+     * 탈퇴한 회원은 행이 없으므로 404
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     */
     @Transactional(readOnly = true)
     public List<ChatMessage> get(long userId) {
         if (!repository.userExists(userId)) {
@@ -30,7 +34,12 @@ public class ChatHistoryService {
         return repository.findRecent(userId, MAX_MESSAGES);
     }
 
-    /** 회원 행 잠금 → 추가 → 50개 정리 → 조회를 한 트랜잭션에서. 같은 회원의 동시 저장도 50개를 넘지 않습니다 */
+    /**
+     * 회원 행 잠금 -> 추가 -> 50개 정리 -> 조회를 한 트랜잭션에서. 같은 회원의 동시 저장도 50개를 넘지 않습니다
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param incoming 추가할 대화 메시지 목록
+     */
     @Transactional
     public List<ChatMessage> append(long userId, List<ChatMessage> incoming) {
         if (!repository.lockUser(userId)) {

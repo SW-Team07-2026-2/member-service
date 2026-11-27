@@ -20,10 +20,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * 토큰 발급 · 가입 · 회전 · 폐기 (§7-1 ~ §7-3). 호출자는 Gateway 의 내부 API 뿐입니다.
- * 사용자 식별은 X-User-Id 가 아니라 요청 본문으로 합니다 (토큰이 없거나 만료된 상태에서 호출됨).
- */
+/** Gateway 내부 호출의 로그인, 가입과 토큰 회전을 처리합니다. 사용자 식별 정보는 요청 본문을 사용합니다. */
 @Service
 public class AuthService {
 
@@ -50,8 +47,14 @@ public class AuthService {
     }
 
     /**
-     * OAuth 로그인 성립 — 기존 회원이면 AT · RT. 처음이면 회원을 만들지 않고 사인업 토큰만 줍니다 (밴드 고르기를 마치면 signup).
+     * OAuth 로그인 성립 - 기존 회원이면 AT, RT. 처음이면 회원을 만들지 않고 사인업 토큰만 줍니다 (밴드 고르기를 마치면 signup).
      * 중간에 나가면 DB 에 아무것도 남지 않고, 가입 대기 값도 토큰 수명 뒤 사라집니다.
+     *
+     * @param provider OAuth 제공자
+     * @param providerUid OAuth 제공자의 회원 식별자
+     * @param email 회원 이메일
+     * @param nickname 회원 닉네임
+     * @param profileImageUrl 프로필 이미지 주소
      */
     public IssueResponse issue(UserEntity.Provider provider, String providerUid, String email, String nickname,
                                String profileImageUrl) {
@@ -66,8 +69,12 @@ public class AuthService {
     }
 
     /**
-     * 가입 완료 — 토큰 검증 → 약관 검사 → 가입 대기 값을 꺼내며 지움(1회용) → 회원 · 팔로우 · 동의 이력 한 트랜잭션 → AT · RT.
-     * 약관 검사를 꺼내기보다 먼저 합니다 — 400 · 409 를 받아도 사인업 토큰이 살아 있어 고쳐서 다시 보낼 수 있습니다
+     * 가입 완료 - 토큰 검증 -> 약관 검사 -> 가입 대기 값을 꺼내며 지움(1회용) -> 회원, 팔로우, 동의 이력 한 트랜잭션 -> AT, RT.
+     * 약관 검사를 꺼내기보다 먼저 합니다 - 400, 409 를 받아도 사인업 토큰이 살아 있어 고쳐서 다시 보낼 수 있습니다
+     *
+     * @param signupToken 일회용 가입 토큰
+     * @param artistIds 대상 아티스트 ID 목록
+     * @param agreements 약관별 동의 내역
      */
     public IssueResponse signup(String signupToken, List<Long> artistIds, List<TermsAgreement> agreements) {
         SignupTokens.Claims claims = signupTokens.verify(signupToken);
@@ -79,7 +86,11 @@ public class AuthService {
         return tokens(result.user(), result.newUser());
     }
 
-    /** RT 회전 — 🔴 응답의 RT 도 새 값. 이미 회전된 RT 가 다시 오면 탈취로 보고 그 사용자의 RT 를 전부 폐기 */
+    /**
+     * RT 회전 - 응답의 RT 도 새 값. 이미 회전된 RT 가 다시 오면 탈취로 보고 그 사용자의 RT 를 전부 폐기
+     *
+     * @param refreshToken 회전할 리프레시 토큰
+     */
     public RefreshResponse refresh(String refreshToken) {
         Rotation rotation = refreshTokenStore.rotate(refreshToken);
         switch (rotation.status()) {
@@ -91,7 +102,7 @@ public class AuthService {
             default -> { }
         }
         Optional<UserEntity> found = userService.find(rotation.userId());
-        if (found.isEmpty()) {   // 탈퇴한 회원의 RT — 남은 RT 를 모두 지웁니다
+        if (found.isEmpty()) {   // 탈퇴한 회원의 RT - 남은 RT 를 모두 지웁니다
             refreshTokenStore.revokeAll(rotation.userId());
             throw new GeneralException(AuthErrorCode.REFRESH_INVALID);
         }
@@ -105,8 +116,14 @@ public class AuthService {
     }
 
     /**
-     * 로그아웃 — AT jti 블랙리스트(TTL = 남은 수명) + RT 삭제.
-     * refreshToken 은 명세에 없는 필드입니다 — allDevices=false 일 때 "해당 RT 1건"을 지정하려고 받습니다.
+     * 로그아웃 - AT jti 블랙리스트(TTL = 남은 수명) + RT 삭제.
+     * refreshToken 은 명세에 없는 필드입니다 - allDevices=false 일 때 "해당 RT 1건"을 지정하려고 받습니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param jti 폐기할 접근 토큰 ID
+     * @param accessTokenExp 접근 토큰 만료 시각(Unix 초)
+     * @param allDevices 회원의 모든 기기 토큰 폐기 여부
+     * @param refreshToken 회전할 리프레시 토큰
      */
     public void revoke(Long userId, String jti, Long accessTokenExp, boolean allDevices, String refreshToken) {
         if (jti != null && accessTokenExp != null) {

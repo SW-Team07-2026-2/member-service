@@ -18,8 +18,8 @@ import java.util.Base64;
 import java.util.List;
 
 /**
- * RSA 키 로딩 — /etc/secrets 의 파일(configtree)에서만 읽습니다.
- * 🔴 사설키를 ConfigMap · 환경변수 · 레포에 두지 마세요. 이 키 하나로 임의 사용자의 토큰을 만들 수 있습니다.
+ * RSA 키 로딩 - /etc/secrets 의 파일(configtree)에서만 읽습니다.
+ * 사설키를 ConfigMap, 환경변수, 레포에 두지 마세요. 이 키 하나로 임의 사용자의 토큰을 만들 수 있습니다.
  */
 @Configuration
 public class JwtKeyConfig {
@@ -34,13 +34,13 @@ public class JwtKeyConfig {
                                    MemberProperties props) throws Exception {
         RSAKey active = new RSAKey.Builder(parsePublic(publicPem))
                 .privateKey(parsePrivate(privatePem))
-                .keyID(props.token().activeKid())          // ★ kid 없으면 롤링 시 전원 로그아웃
+                .keyID(props.token().activeKid())          // kid 없으면 롤링 시 전원 로그아웃
                 .keyUse(KeyUse.SIGNATURE)
                 .algorithm(JWSAlgorithm.RS256)
                 .build();
         List<JWK> publicKeys = new ArrayList<>();
         publicKeys.add(active.toPublicJWK());
-        // 키 롤링 중 — 신 · 구 공개키를 함께 응답하고 서명은 활성 키로만. AT 수명(30분) 뒤 구 키 제거
+        // 키 롤링 중 - 신, 구 공개키를 함께 응답하고 서명은 활성 키로만. AT 수명(30분) 뒤 구 키 제거
         if (!previousPublicPem.isBlank() && props.token().previousKid() != null && !props.token().previousKid().isBlank()) {
             publicKeys.add(new RSAKey.Builder(parsePublic(previousPublicPem))
                     .keyID(props.token().previousKid()).keyUse(KeyUse.SIGNATURE).algorithm(JWSAlgorithm.RS256).build());

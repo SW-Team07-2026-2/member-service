@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.Map;
 
-/** 공개 API M24 · M25 — 약관 (가입 화면 · 푸터 약관 화면). 아직 회원이 아닐 때 부르므로 로그인이 없습니다 (Gateway 공개 GET) */
+/** 가입 화면 또는 푸터 -> Gateway -> Member 현재 약관과 문서 조회. 로그인 없이 조회할 수 있습니다. */
 @RestController
 @RequestMapping("/api/members/terms")
 public class TermsController {
@@ -23,13 +23,17 @@ public class TermsController {
         this.termsService = termsService;
     }
 
-    /** M24 — 가입 화면 체크박스 (동의받는 약관만) */
+    /** M24 - 가입 화면 체크박스 (동의받는 약관만) */
     @GetMapping
     public ApiResponse<Map<String, List<TermsView>>> current() {
         return ApiResponse.onSuccess(Map.of("items", termsService.current().stream().map(TermsView::of).toList()));
     }
 
-    /** M25 — 푸터 약관 화면 (TOS · PRIVACY_POLICY 등). 없는 code 는 400 INVALID_REQUEST */
+    /**
+     * M25 - 푸터 약관 화면 (TOS, PRIVACY_POLICY 등). 없는 code 는 400 INVALID_REQUEST
+     *
+     * @param code 조회할 약관 종류
+     */
     @GetMapping("/{code}")
     public ApiResponse<TermsView> document(@PathVariable TermsCode code) {
         return ApiResponse.onSuccess(TermsView.of(termsService.document(code)));

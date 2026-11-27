@@ -10,7 +10,7 @@ import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Objects;
 
-/** follow — artist_id 는 catalog.artist 를 가리키지만 FK 가 없습니다 (스키마 분리) */
+/** follow - artist_id 는 catalog.artist 를 가리키지만 FK 가 없습니다 (스키마 분리) */
 @Entity
 @Table(name = "follow")
 public class FollowEntity {
@@ -19,7 +19,7 @@ public class FollowEntity {
     private Id id;
 
     @Column(insertable = false, updatable = false)
-    private OffsetDateTime followedAt;                 // ★ 피드 기준점
+    private OffsetDateTime followedAt;                 // 피드 기준점
 
     protected FollowEntity() {}
 

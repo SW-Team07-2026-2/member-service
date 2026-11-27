@@ -11,13 +11,8 @@ import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializer;
 
 /**
- * 인증용 Redis 하나 (Gateway 와 같은 인스턴스 · noeviction) — 연결은 spring.data.redis.* (Boot 자동 설정).
- * <pre>
- * StringRedisTemplate (Boot)   auth:rt:user:{userId} SET · member:blacklist:{jti} · member:badge:{userId} · Lua 실행
- * refreshTokenRedis            auth:rt:{hash} · auth:rt:used:{hash}      → StoredToken JSON
- * signupRedis                  auth:signup:{provider}:{providerUid}      → PendingSignup JSON
- * </pre>
- * 62B — 값 JSON 은 타입별 템플릿의 직렬화기가 맡습니다 (ObjectMapper 직접 호출 없음). Lua 는 resources/redis/*.lua
+ * 토큰, 가입 대기와 인증 상태를 noeviction Redis에 저장합니다.
+ * JSON 값은 타입별 템플릿으로 직렬화하고 원자적 처리는 resources/redis의 Lua를 사용합니다.
  */
 @Configuration
 public class RedisConfig {

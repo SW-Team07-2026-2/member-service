@@ -10,7 +10,7 @@ public interface FollowJpaRepository extends JpaRepository<FollowEntity, FollowE
 
     long countByIdUserId(Long userId);
 
-    /** 멱등 — 이미 팔로우면 0행 · followed_at 유지 */
+    /** 멱등 - 이미 팔로우면 0행, followed_at 유지 */
     @Modifying
     @Query(value = "INSERT INTO follow (user_id, artist_id) VALUES (:userId, :artistId) ON CONFLICT DO NOTHING",
             nativeQuery = true)

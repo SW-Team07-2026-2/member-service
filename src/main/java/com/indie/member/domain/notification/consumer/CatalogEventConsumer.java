@@ -19,16 +19,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Catalog 이벤트 → 알림 (docs/v2_member_service_re.md §6.3 · §8).
- * <pre>
- * album.released            팔로워에게  ALBUM · EP · SINGLE_RELEASED
- * physical_album.released   팔로워에게  PHYSICAL_ALBUM_RELEASED (새 옵션 추가 포함)
- * goods.released            팔로워에게  GOODS_RELEASED
- * order.confirmed           본인에게    PURCHASE_DONE + 산 피지컬 앨범을 콜렉션에
- * order.refunded            본인에게    PURCHASE_REFUNDED
- * </pre>
- * 이름 · 가격은 catalog 스키마라 조인할 수 없어 이벤트를 받은 시점 값으로 문장을 만듭니다.
- * 처리는 멱등입니다 (UNIQUE(user_id, event_id) · UNIQUE(user_id, option_id)) — 중복이어도 커밋합니다.
+ * Catalog -> Kafka 발매, 주문 이벤트 -> Member 알림과 보유 음반 반영.
+ * 알림과 소장 내역의 유일 제약으로 중복 수신을 처리합니다.
  */
 @Component
 public class CatalogEventConsumer {
@@ -46,7 +38,12 @@ public class CatalogEventConsumer {
         this.objectMapper = objectMapper;
     }
 
-    /** 음원 앨범 발매 — 앨범 구분(ALBUM · EP · SINGLE)이 알림 종류가 됩니다 */
+    /**
+     * 음원 앨범 발매 - 앨범 구분(ALBUM, EP, SINGLE)이 알림 종류가 됩니다
+     *
+     * @param record Kafka에서 수신한 이벤트 레코드
+     * @param ack 처리 완료 후 오프셋을 커밋할 승인 객체
+     */
     @KafkaListener(topics = "album.released")
     public void onAlbumReleased(ConsumerRecord<String, String> record, Acknowledgment ack) throws JsonProcessingException {
         EventEnvelope e = EventEnvelope.parse(objectMapper, record.value());
@@ -60,7 +57,12 @@ public class CatalogEventConsumer {
         ack.acknowledge();
     }
 
-    /** 피지컬 앨범(LP · CD · 카세트) 발매 — 같은 앨범에 옵션(컬러반 등)이 새로 추가될 때도 옵니다 */
+    /**
+     * 피지컬 앨범(LP, CD, 카세트) 발매 - 같은 앨범에 옵션(컬러반 등)이 새로 추가될 때도 옵니다
+     *
+     * @param record Kafka에서 수신한 이벤트 레코드
+     * @param ack 처리 완료 후 오프셋을 커밋할 승인 객체
+     */
     @KafkaListener(topics = "physical_album.released")
     public void onPhysicalAlbumReleased(ConsumerRecord<String, String> record, Acknowledgment ack) throws JsonProcessingException {
         EventEnvelope e = EventEnvelope.parse(objectMapper, record.value());
@@ -80,6 +82,12 @@ public class CatalogEventConsumer {
         ack.acknowledge();
     }
 
+    /**
+     * 굿즈 발매 이벤트를 받아 팔로워 알림을 저장합니다.
+     *
+     * @param record Kafka에서 수신한 이벤트 레코드
+     * @param ack 처리 완료 후 오프셋을 커밋할 승인 객체
+     */
     @KafkaListener(topics = "goods.released")
     public void onGoodsReleased(ConsumerRecord<String, String> record, Acknowledgment ack) throws JsonProcessingException {
         EventEnvelope e = EventEnvelope.parse(objectMapper, record.value());
@@ -90,8 +98,11 @@ public class CatalogEventConsumer {
     }
 
     /**
-     * 주문 확정 — 본인 알림 + 산 피지컬 앨범을 콜렉션(source=PURCHASE)에. 굿즈(physicalAlbumId 없음)는 콜렉션에 넣지 않습니다.
-     * 🔴 본인에게만 — 아티스트 단위로 넣으면 팔로워 전원에게 남의 주문이 보입니다.
+     * 주문 확정 - 본인 알림 + 산 피지컬 앨범을 콜렉션(source=PURCHASE)에. 굿즈(physicalAlbumId 없음)는 콜렉션에 넣지 않습니다.
+     * 본인에게만 - 아티스트 단위로 넣으면 팔로워 전원에게 남의 주문이 보입니다.
+     *
+     * @param record Kafka에서 수신한 이벤트 레코드
+     * @param ack 처리 완료 후 오프셋을 커밋할 승인 객체
      */
     @KafkaListener(topics = "order.confirmed")
     public void onOrderConfirmed(ConsumerRecord<String, String> record, Acknowledgment ack) throws JsonProcessingException {
@@ -114,6 +125,12 @@ public class CatalogEventConsumer {
         ack.acknowledge();
     }
 
+    /**
+     * 주문 환불 이벤트를 받아 구매자에게 알림을 저장합니다.
+     *
+     * @param record Kafka에서 수신한 이벤트 레코드
+     * @param ack 처리 완료 후 오프셋을 커밋할 승인 객체
+     */
     @KafkaListener(topics = "order.refunded")
     public void onOrderRefunded(ConsumerRecord<String, String> record, Acknowledgment ack) throws JsonProcessingException {
         EventEnvelope e = EventEnvelope.parse(objectMapper, record.value());

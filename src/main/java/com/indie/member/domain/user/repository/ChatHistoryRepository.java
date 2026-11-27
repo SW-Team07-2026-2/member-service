@@ -16,13 +16,13 @@ import static com.indie.member.domain.user.entity.QChatMessageEntity.chatMessage
 import static com.indie.member.domain.user.entity.QUserEntity.userEntity;
 
 /**
- * chat_message 접근 — 대화는 users 와 다른 테이블이라 프로필 조회 · 수정과 섞이지 않습니다.
+ * chat_message 접근 - 대화는 users 와 다른 테이블이라 프로필 조회, 수정과 섞이지 않습니다.
  * FIFO 기준은 저장 순서(id)입니다. spokenAt 으로 다시 정렬하지 않습니다.
  */
 @Repository
 public class ChatHistoryRepository {
 
-    /** timestamptz 는 시각만 저장합니다 — 응답은 같은 시각을 한국 시간(+09:00)으로 돌려줍니다 */
+    /** timestamptz 는 시각만 저장합니다 - 응답은 같은 시각을 한국 시간(+09:00)으로 돌려줍니다 */
     private static final ZoneOffset KST = ZoneOffset.ofHours(9);
 
     private final JPAQueryFactory query;
@@ -38,7 +38,7 @@ public class ChatHistoryRepository {
     }
 
     /**
-     * 회원 행을 잠그고 있는지 돌려줍니다 — 저장 트랜잭션에서만. 같은 회원의 추가 → 50개 정리 → 조회를 직렬화합니다.
+     * 회원 행을 잠그고 있는지 돌려줍니다 - 저장 트랜잭션에서만. 같은 회원의 추가 -> 50개 정리 -> 조회를 직렬화합니다.
      * PESSIMISTIC_WRITE 는 PostgreSQL 에서 FOR NO KEY UPDATE 라 다른 테이블의 FK 검사(알림 복사 등)를 막지 않습니다.
      */
     public boolean lockUser(long userId) {
@@ -61,7 +61,7 @@ public class ChatHistoryRepository {
         return messages;
     }
 
-    /** 받은 순서대로 1행씩 — id 가 그 순서를 따릅니다 */
+    /** 받은 순서대로 1행씩 - id 가 그 순서를 따릅니다 */
     public void insert(long userId, List<ChatMessage> messages) {
         for (ChatMessage message : messages) {
             em.persist(ChatMessageEntity.of(userId, message));

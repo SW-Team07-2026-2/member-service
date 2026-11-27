@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 
 import static com.indie.member.domain.follow.entity.QFollowEntity.followEntity;
 
-/** FollowRepository 구현 — 쓰기는 Spring Data(네이티브 INSERT ON CONFLICT), 커서 목록은 QueryDSL */
+/** FollowRepository 구현 - 쓰기는 Spring Data(네이티브 INSERT ON CONFLICT), 커서 목록은 QueryDSL */
 @Repository
 public class FollowRepositoryAdapter implements FollowRepository {
 
@@ -52,7 +52,7 @@ public class FollowRepositoryAdapter implements FollowRepository {
 
     @Override
     public List<FollowItem> findPage(long userId, Cursor cursor, int limit) {
-        QFollowEntity fans = new QFollowEntity("fans");   // 그 아티스트의 팔로워 수 — idx_follow_artist
+        QFollowEntity fans = new QFollowEntity("fans");   // 그 아티스트의 팔로워 수 - idx_follow_artist
         return query.select(Projections.constructor(FollowItem.class, followEntity.id.artistId, followEntity.followedAt,
                         JPAExpressions.select(fans.count()).from(fans).where(fans.id.artistId.eq(followEntity.id.artistId))))
                 .from(followEntity)

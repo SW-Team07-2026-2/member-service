@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.Map;
 
-/** 공개 API M17 · M18 — MY › 약관 · 동의 (마케팅 수신 켜고 끄기) */
+/** 로그인한 프론트 -> Gateway -> Member 약관 동의 조회와 마케팅 동의 변경 API. */
 @RestController
 @RequestMapping("/api/members/me/agreements")
 public class AgreementController {
@@ -27,11 +27,22 @@ public class AgreementController {
         this.termsService = termsService;
     }
 
+    /**
+     * 약관 동의 목록을 조회합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     */
     @GetMapping
     public ApiResponse<Map<String, List<AgreementItem>>> list(@CurrentUser Long userId) {
         return ApiResponse.onSuccess(Map.of("items", termsService.myAgreements(userId)));
     }
 
+    /**
+     * 회원의 마케팅 수신 동의를 변경합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param request 변경할 마케팅 수신 동의 여부
+     */
     @PutMapping("/marketing")
     public ApiResponse<MarketingView> marketing(@CurrentUser Long userId, @Valid @RequestBody MarketingRequest request) {
         return ApiResponse.onSuccess(termsService.changeMarketing(userId, request.agreed()));

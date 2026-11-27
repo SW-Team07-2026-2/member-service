@@ -7,8 +7,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * 회원 탈퇴의 순서 — ① DB 에서 회원을 지우고 user.withdrawn 을 남긴 뒤 커밋 (UserService.delete) ② 커밋 뒤 Redis 정리.
- * 트랜잭션을 여기서 열지 않습니다 — Redis 는 롤백되지 않으므로 DB 커밋이 끝난 다음에 지웁니다.
+ * 회원 탈퇴의 순서 - 1 DB 에서 회원을 지우고 user.withdrawn 을 남긴 뒤 커밋 (UserService.delete) 2 커밋 뒤 Redis 정리.
+ * 트랜잭션을 여기서 열지 않습니다 - Redis 는 롤백되지 않으므로 DB 커밋이 끝난 다음에 지웁니다.
  */
 @Service
 public class WithdrawalService {
@@ -25,6 +25,11 @@ public class WithdrawalService {
         this.badgeCache = badgeCache;
     }
 
+    /**
+     * Withdrawal 회원 탈퇴와 연관 데이터 정리를 수행합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     */
     public void withdraw(long userId) {
         userService.delete(userId);
         try {

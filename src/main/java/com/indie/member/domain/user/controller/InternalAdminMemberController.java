@@ -15,10 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/**
- * 관리자(Studio) 전용 내부 API — X-Internal-Token 의 iss 가 admin-issuers(studio)일 때만 (InternalTokenFilter).
- * CS 관리자가 회원을 찾습니다. 조회만 있습니다 — 회원 정보 수정 · 탈퇴는 회원 본인만 합니다.
- */
+/** Studio -> Member 내부 관리자 API로 회원 검색과 상세 조회. 회원 수정과 탈퇴는 제공하지 않습니다. */
 @Validated
 @RestController
 public class InternalAdminMemberController {
@@ -31,7 +28,12 @@ public class InternalAdminMemberController {
         this.pageSize = pageSize;
     }
 
-    /** 회원 검색 — 회원 번호 일치 · 이메일 일치 · 닉네임 부분 일치. 최근 가입순, 이메일은 가려서 */
+    /**
+     * 관리자용 회원 검색 결과를 반환합니다.
+     *
+     * @param q 검색어
+     * @param size 페이지당 조회 개수
+     */
     @GetMapping("/internal/admin/members")
     public ApiResponse<List<AdminMemberResponse>> search(@RequestParam @NotBlank @Size(max = 255) String q,
                                                          @RequestParam(required = false) Integer size) {
@@ -39,7 +41,11 @@ public class InternalAdminMemberController {
                 .map(AdminMemberResponse::summary).toList());
     }
 
-    /** 회원 한 명 — 없으면(탈퇴 포함) 404 */
+    /**
+     * 관리자용 회원 상세를 조회합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     */
     @GetMapping("/internal/admin/members/{userId}")
     public ApiResponse<AdminMemberResponse> detail(@PathVariable @Positive long userId) {
         return ApiResponse.onSuccess(AdminMemberResponse.detail(userService.get(userId)));

@@ -12,8 +12,8 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * 알림을 쓰는 유일한 경로 — Kafka 컨슈머만 씁니다.
- * ★ 멱등 소비는 UNIQUE(user_id, event_id) 로. 같은 이벤트가 다시 와도 0행이 들어갈 뿐입니다 (정상 경로).
+ * 알림을 쓰는 유일한 경로 - Kafka 컨슈머만 씁니다.
+ * 멱등 소비는 UNIQUE(user_id, event_id) 로. 같은 이벤트가 다시 와도 0행이 들어갈 뿐입니다 (정상 경로).
  */
 @Service
 public class NotificationWriter {
@@ -29,8 +29,13 @@ public class NotificationWriter {
     }
 
     /**
-     * 팔로잉 소식 — 이벤트를 받은 시점의 팔로워에게만 복사합니다 (팔로우하기 전 소식은 넣지 않습니다).
-     * artistIds 는 라인업 순서입니다. 앞 순서부터 넣으므로 여러 팀을 팔로우한 회원은 가장 앞 팀의 이름으로 1건만 받습니다.
+     * 아티스트 팔로워에게 이벤트 알림을 일괄 저장합니다.
+     *
+     * @param eventId 중복 처리에 사용할 이벤트 ID
+     * @param type 발매 알림 종류
+     * @param refId 알림이 가리키는 대상 ID
+     * @param artistIds 대상 아티스트 ID 목록
+     * @param message 알림 문장
      */
     @Transactional
     public void fanOut(UUID eventId, NotificationType type, long refId, List<Long> artistIds, String message) {
@@ -42,7 +47,15 @@ public class NotificationWriter {
         log.info("notification_fanout type={} eventId={} artists={} inserted={}", type, eventId, artistIds.size(), inserted);
     }
 
-    /** 개인 알림 — 주문 · 예매의 당사자에게만. 탈퇴한 회원이면 넣지 않습니다 */
+    /**
+     * 회원 한 명에게 이벤트 알림을 저장합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param eventId 중복 처리에 사용할 이벤트 ID
+     * @param type 발매 알림 종류
+     * @param refId 알림이 가리키는 대상 ID
+     * @param message 알림 문장
+     */
     @Transactional
     public void personal(long userId, UUID eventId, NotificationType type, long refId, String message) {
         int inserted = notificationRepository.addPersonal(userId, eventId, type, refId, NotificationMessages.fit(message));

@@ -11,8 +11,8 @@ import jakarta.persistence.Table;
 import java.time.LocalDate;
 
 /**
- * collection — 회원이 가진 피지컬 앨범을 옵션 단위로 (LP 블랙반 · 컬러반, CD, 카세트).
- * physical_album_id · option_id 는 catalog 의 ID 라 FK 가 없습니다. UNIQUE(user_id, option_id).
+ * collection - 회원이 가진 피지컬 앨범을 옵션 단위로 (LP 블랙반, 컬러반, CD, 카세트).
+ * physical_album_id, option_id 는 catalog 의 ID 라 FK 가 없습니다. UNIQUE(user_id, option_id).
  */
 @Entity
 @Table(name = "collection")

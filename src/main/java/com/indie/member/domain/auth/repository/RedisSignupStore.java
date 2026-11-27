@@ -11,13 +11,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * <pre>
- * auth:signup:{provider}:{providerUid} → {"jti","email","nickname","profileImageUrl"}  TTL = 사인업 토큰 수명
- * </pre>
- * 꺼내기는 Lua 하나로 (resources/redis/signup-consume.lua) — "가입하기" 를 두 번 눌러도 한 번만 성공합니다.
- * 값 JSON 은 signupRedis 템플릿의 직렬화기가 맡습니다 (62B).
- */
+/** 신규 가입 대기 정보를 Redis에 저장합니다. Lua로 조회와 삭제를 함께 수행해 중복 가입 요청을 막습니다. */
 @Component
 public class RedisSignupStore implements SignupStore {
 
@@ -40,7 +34,7 @@ public class RedisSignupStore implements SignupStore {
 
     @Override
     public Optional<PendingSignup> consume(UserEntity.Provider provider, String providerUid, String jti) {
-        // 인자(jti)는 문자열 그대로 · 결과(값 JSON)는 PendingSignup 으로
+        // 인자(jti)는 문자열 그대로, 결과(값 JSON)는 PendingSignup 으로
         return Optional.ofNullable(signupRedis.execute(CONSUME, RedisSerializer.string(), values,
                 List.of(key(provider, providerUid)), jti));
     }

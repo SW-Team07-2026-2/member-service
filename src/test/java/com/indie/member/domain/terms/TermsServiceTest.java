@@ -48,7 +48,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 /**
- * Flyway 스키마와 V2 의 약관 본문 위에서 약관 · 동의 — 현재 버전 고르기 · 가입 검사 · 게시 문서 · MY 마케팅 켜고 끄기. Docker 가 없으면 건너뜁니다.
+ * Flyway 스키마와 V2 의 약관 본문 위에서 약관, 동의 - 현재 버전 고르기, 가입 검사, 게시 문서, MY 마케팅 켜고 끄기. Docker 가 없으면 건너뜁니다.
  * 서비스 호출마다 커밋합니다 (운영과 같게)
  */
 @Testcontainers(disabledWithoutDocker = true)
@@ -88,7 +88,7 @@ class TermsServiceTest {
         ids = service.current().stream().collect(Collectors.toMap(TermsEntity::getCode, TermsEntity::getId));
     }
 
-    /** ★ v1 시드 — 4개 · 가입 화면 순서 · 마케팅만 선택 · 본문 있음 */
+    /** v1 시드 - 4개, 가입 화면 순서, 마케팅만 선택, 본문 있음 */
     @Test
     void currentTermsAreSeededInScreenOrder() {
         List<TermsEntity> current = service.current();
@@ -99,7 +99,7 @@ class TermsServiceTest {
         assertThat(current).allSatisfy(t -> assertThat(t.getContent()).startsWith("# ").doesNotContain("[운영자명]"));
     }
 
-    /** 필수만 보내면 통과 — 보내지 않은 마케팅은 agreed=false 로 펴서 4건 */
+    /** 필수만 보내면 통과 - 보내지 않은 마케팅은 agreed=false 로 펴서 4건 */
     @Test
     void signupWithRequiredOnlyRecordsMarketingAsNotAgreed() {
         List<TermsAgreement> checked = service.checkSignup(List.of(
@@ -124,7 +124,7 @@ class TermsServiceTest {
                 new TermsAgreement(999_999L, true))), TermsErrorCode.TERMS_OUTDATED);
     }
 
-    /** M25 — 처리방침은 게시 문서: 가입 화면(M24) · 가입 검사에 없고 따로 내려감 */
+    /** M25 - 처리방침은 게시 문서: 가입 화면(M24), 가입 검사에 없고 따로 내려감 */
     @Test
     void privacyPolicyIsDocumentNotConsent() {
         TermsEntity policy = service.document(TermsCode.PRIVACY_POLICY);
@@ -151,7 +151,7 @@ class TermsServiceTest {
         assertThat(v2).allSatisfy(t -> assertThat(t.getContent()).contains("챗봇 답변", "최근 메시지 50개"));
     }
 
-    /** member v2 고지 v3 (행동 기록 · 알림 보관 · 분석 쿠키) 는 7일 공지 뒤 2026-11-21 시행 */
+    /** member v2 고지 v3 (행동 기록, 알림 보관, 분석 쿠키) 는 7일 공지 뒤 2026-11-21 시행 */
     @Test
     void memberV2NoticeTakesEffectOnNovember21() {
         List<TermsCode> codes = List.of(TermsCode.PRIVACY, TermsCode.PRIVACY_POLICY);
@@ -167,7 +167,7 @@ class TermsServiceTest {
         assertThat(policy.getContent()).contains("Google Analytics").doesNotContain("추적 쿠키는 사용하지 않습니다");
     }
 
-    /** 처리방침 v4 (GA 회원 번호 · 추천 목적 · 보관 14개월) 는 7일 공지 뒤 2026-12-01 시행 · 동의 문서(PRIVACY)는 v3 그대로 */
+    /** 처리방침 v4 (GA 회원 번호, 추천 목적, 보관 14개월) 는 7일 공지 뒤 2026-12-01 시행, 동의 문서(PRIVACY)는 v3 그대로 */
     @Test
     void analyticsMemberIdNoticeTakesEffectOnDecember1() {
         List<TermsCode> codes = List.of(TermsCode.PRIVACY, TermsCode.PRIVACY_POLICY);
@@ -184,8 +184,8 @@ class TermsServiceTest {
     }
 
     /**
-     * 이용약관 시행 순서 — v1 (11/05) → v3 (11/27 · 탈퇴할 때 예매 처리 제5조 ③ ④ · 바로 시행) → v4 (12/02 · v2 의 제8조 소개 글의 출처 + 제5조 ③ ④).
-     * v2 는 v4 와 시행 시각이 같고 id 가 작아 시행 중이 되지 않습니다 — 12/02 에 제5조 ③ ④ 가 빠지지 않게
+     * 이용약관 시행 순서 - v1  -> v3 (, 탈퇴할 때 예매 처리 제5조 3 4, 바로 시행) -> v4 (12/02, v2 의 제8조 소개 글의 출처 + 제5조 3 4).
+     * v2 는 v4 와 시행 시각이 같고 id 가 작아 시행 중이 되지 않습니다 - 12/02 에 제5조 3 4 가 빠지지 않게
      */
     @Test
     void tosTimelineKeepsWithdrawalClauseAfterDecember2() {
@@ -208,7 +208,7 @@ class TermsServiceTest {
                 "CC BY-SA 4.0", "2026년 12월 2일부터").doesNotContain("2026년 11월 5일부터", "2026년 11월 27일부터");
     }
 
-    /** 새 버전이 시행되면 옛 id 는 409 · 시행 전(공지 기간)이면 옛 버전이 그대로 현재 */
+    /** 새 버전이 시행되면 옛 id 는 409, 시행 전(공지 기간)이면 옛 버전이 그대로 현재 */
     @Test
     void newVersionReplacesOldOnlyAfterEffectiveAt() {
         long v1 = ids.get(TermsCode.TOS);
@@ -229,7 +229,7 @@ class TermsServiceTest {
         }
     }
 
-    /** M17 · M18 — 코드마다 마지막 기록 · 같은 값이면 이력을 남기지 않음 · 바꾸면 channel=MY 한 줄 */
+    /** M17, M18 - 코드마다 마지막 기록, 같은 값이면 이력을 남기지 않음, 바꾸면 channel=MY 한 줄 */
     @Test
     void marketingToggleAppendsHistoryOnlyOnChange() {
         long userId = newUser();
@@ -256,7 +256,7 @@ class TermsServiceTest {
         assertThat(mine).extracting(AgreementItem::agreed).containsExactly(true, true, true, true);
     }
 
-    /** 가입 전 회원(동의 이력 없음)도 MY 에서 빈 목록 · 마케팅을 켤 수 있음 */
+    /** 가입 전 회원(동의 이력 없음)도 MY 에서 빈 목록, 마케팅을 켤 수 있음 */
     @Test
     void userWithoutHistory() {
         long userId = newUser();

@@ -40,8 +40,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 /**
- * 행동 메트릭 — Flyway 스키마(user_metric) 위에서 수집(멱등 · 시각 범위) · AI 조회(합계 · 원본 행) · 보관 기간 삭제.
- * Docker 가 없으면 건너뜁니다. HQL insert … values … on conflict 가 실제 PostgreSQL 에서 도는지 여기서 확인합니다.
+ * 행동 메트릭 - Flyway 스키마(user_metric) 위에서 수집(멱등, 시각 범위), AI 조회(합계, 원본 행), 보관 기간 삭제.
+ * Docker 가 없으면 건너뜁니다. HQL insert ... values ... on conflict 가 실제 PostgreSQL 에서 도는지 여기서 확인합니다.
  */
 @Testcontainers(disabledWithoutDocker = true)
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=validate")
@@ -78,7 +78,7 @@ class MetricPersistenceTest {
         userId = newUser();
     }
 
-    /** ★ 같은 metricId 를 다시 보내도 한 번만 저장 — saved 는 이번에 실제로 저장된 수 */
+    /** 같은 metricId 를 다시 보내도 한 번만 저장 - saved 는 이번에 실제로 저장된 수 */
     @Test
     void collectSavesOnceAndIgnoresResentEvents() {
         MetricEvent view = event(MetricTargetType.PHYSICAL_ALBUM, 31, MetricType.DETAIL_VIEW, 1, Map.of("from", "HOME"), now);
@@ -109,7 +109,7 @@ class MetricPersistenceTest {
         assertThat(jdbc.queryForList("SELECT target_id FROM user_metric WHERE user_id = ?", Long.class, userId)).containsExactly(880L);
     }
 
-    /** 탈퇴한 회원(행 없음)의 요청은 404 — FK 오류를 내지 않습니다 */
+    /** 탈퇴한 회원(행 없음)의 요청은 404 - FK 오류를 내지 않습니다 */
     @Test
     void missingMemberIsNotFound() {
         assertCode(() -> service.collect(Long.MAX_VALUE, List.of(event(MetricTargetType.ARTIST, 1, MetricType.SHARE, 1, null, now))),
@@ -117,7 +117,7 @@ class MetricPersistenceTest {
         assertCode(() -> service.aggregate(Long.MAX_VALUE, null, null, null, null, 10), "NOT_FOUND");
     }
 
-    /** 11/24 서버만 기록하는 종류는 프론트가 보내도 그 건만 버림 — 같은 행동을 두 번 세지 않게 */
+    /** 서버만 기록하는 종류는 프론트가 보내도 그 건만 버림 - 같은 행동을 두 번 세지 않게 */
     @Test
     void collectDropsServerOnlyTypes() {
         MetricEvent cart = event(MetricTargetType.GOODS, 40, MetricType.CART_ADD, 1, null, now);
@@ -128,7 +128,7 @@ class MetricPersistenceTest {
                 .containsExactly("DETAIL_VIEW");
     }
 
-    /** 11/24 서버 기록 — 같은 metricId 는 한 번 · 검색어는 target_id 없음 · 탈퇴 회원은 0 (FK 오류 없음) · 6개월 넘은 행동은 버림 */
+    /** 서버 기록 - 같은 metricId 는 한 번, 검색어는 target_id 없음, 탈퇴 회원은 0 (FK 오류 없음), 6개월 넘은 행동은 버림 */
     @Test
     void recordSavesServerMetrics() {
         NewMetric search = new NewMetric(UUID.randomUUID(), null, null, MetricTargetType.ARTIST, null, MetricType.SEARCH, 1,
@@ -146,7 +146,7 @@ class MetricPersistenceTest {
                 .extracting(MetricRow::targetId).containsExactly((Long) null);
     }
 
-    /** AI 조회 — (대상, 행동 종류)별 count · sum · 마지막 시각. 합이 큰 순. 기간 · 종류로 거릅니다 */
+    /** AI 조회 - (대상, 행동 종류)별 count, sum, 마지막 시각. 합이 큰 순. 기간, 종류로 거릅니다 */
     @Test
     void aggregateGroupsByTargetAndMetricTypeWithFilters() {
         long other = newUser();
@@ -172,7 +172,7 @@ class MetricPersistenceTest {
         assertThat(service.aggregate(userId, null, null, null, null, 1)).hasSize(1);
     }
 
-    /** 원본 행 — (occurred_at, metric_id) 내림차순 커서 페이지 · properties 는 저장된 JSON 그대로 */
+    /** 원본 행 - (occurred_at, metric_id) 내림차순 커서 페이지, properties 는 저장된 JSON 그대로 */
     @Test
     void rowsArePagedNewestFirst() {
         insert(userId, MetricTargetType.ARTIST, 1, MetricType.SHARE, 1, now.minusHours(3));
@@ -197,7 +197,7 @@ class MetricPersistenceTest {
         assertCode(() -> service.aggregate(userId, now.minusMonths(7), now, null, null, 10), "INVALID_REQUEST");
     }
 
-    /** 보관 6개월 — 기준 시각보다 오래된 행만, 한 번에 limit 건까지 */
+    /** 보관 6개월 - 기준 시각보다 오래된 행만, 한 번에 limit 건까지 */
     @Test
     void retentionDeletesOnlyOldMetricsInBatches() {
         OffsetDateTime cutoff = now.minusMonths(6);

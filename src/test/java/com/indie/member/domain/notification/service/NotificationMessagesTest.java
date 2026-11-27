@@ -7,7 +7,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 알림 문장 — 제목 없이 한 줄. 없는 값은 빼고 만듭니다 */
+/** 알림 문장 - 제목 없이 한 줄. 없는 값은 빼고 만듭니다 */
 class NotificationMessagesTest {
 
     @Test
@@ -60,7 +60,7 @@ class NotificationMessagesTest {
         assertThat(NotificationMessages.purchaseRefunded("「비적응」 LP", 2, 52_000L)).isEqualTo("「비적응」 LP 외 1건 환불 완료 · 52,000원");
     }
 
-    /** 컬럼은 코드 포인트 200 — 이모지도 1자로 셉니다 */
+    /** 컬럼은 코드 포인트 200 - 이모지도 1자로 셉니다 */
     @Test
     void fitCutsByCodePoints() {
         assertThat(NotificationMessages.fit("가".repeat(200))).hasSize(200);

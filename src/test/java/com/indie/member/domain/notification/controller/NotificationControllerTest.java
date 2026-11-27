@@ -33,13 +33,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** 알림 API 의 응답 모양 — 프론트가 target · targetId 로 이동하고 isRead 로 표시합니다 */
+/** 알림 API 의 응답 모양 - 프론트가 target, targetId 로 이동하고 isRead 로 표시합니다 */
 class NotificationControllerTest {
 
     private static final String PATH = "/api/members/notifications";
 
     private final NotificationService service = mock(NotificationService.class);
-    /** 운영(Spring Boot 기본값)과 같게 — 시각은 숫자가 아니라 ISO-8601 문자열 */
+    /** 운영(Spring Boot 기본값)과 같게 - 시각은 숫자가 아니라 ISO-8601 문자열 */
     private final ObjectMapper mapper = Jackson2ObjectMapperBuilder.json()
             .featuresToDisable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS).build();
     private MockMvc mvc;

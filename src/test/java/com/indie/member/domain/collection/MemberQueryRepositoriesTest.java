@@ -42,7 +42,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 팔로우 · 콜렉션 · outbox 의 조회 · 쓰기가 Flyway 스키마 위에서 맞게 도는지. Docker 가 없으면 건너뜁니다.
+ * 팔로우, 콜렉션, outbox 의 조회, 쓰기가 Flyway 스키마 위에서 맞게 도는지. Docker 가 없으면 건너뜁니다.
  * 픽스처는 시각을 정해 넣어야 해서 JdbcTemplate 로 넣습니다.
  */
 @Testcontainers(disabledWithoutDocker = true)
@@ -88,7 +88,7 @@ class MemberQueryRepositoriesTest {
         userId = newUser();
     }
 
-    /** (followed_at, artist_id) 내림차순 · 같은 시각은 artist_id 로 · 커서 다음부터 */
+    /** (followed_at, artist_id) 내림차순, 같은 시각은 artist_id 로, 커서 다음부터 */
     @Test
     void followPageOrdersByTimeThenIdAndContinuesAfterCursor() {
         follow(10, T);
@@ -103,7 +103,7 @@ class MemberQueryRepositoriesTest {
         assertThat(follows.countByUserId(userId)).isEqualTo(3);
     }
 
-    /** 11/19 팔로우 탭 "팔로워순" — 항목마다 그 아티스트의 전체 팔로워 수 (다른 회원 포함) */
+    /** 팔로우 탭 "팔로워순" - 항목마다 그 아티스트의 전체 팔로워 수 (다른 회원 포함) */
     @Test
     void followItemCarriesArtistFollowerCount() {
         follow(20, T);
@@ -115,7 +115,7 @@ class MemberQueryRepositoriesTest {
                 .containsExactly(Tuple.tuple(21L, 1L), Tuple.tuple(20L, 2L));
     }
 
-    /** 11/19 내부 API — 팔로우 전부 (최근 팔로우순) · 그 아티스트의 지금 팔로워 수 */
+    /** 내부 API - 팔로우 전부 (최근 팔로우순), 그 아티스트의 지금 팔로워 수 */
     @Test
     void followSummariesCarryFollowerCount() {
         follow(30, T);
@@ -128,7 +128,7 @@ class MemberQueryRepositoriesTest {
         assertThat(follows.findSummaries(userId, 1)).hasSize(1);
     }
 
-    /** 11/24 내부 API — 아티스트별 전체 팔로워 수 (다른 회원 포함) · 팔로워가 없는 아티스트는 빠짐 */
+    /** 내부 API - 아티스트별 전체 팔로워 수 (다른 회원 포함), 팔로워가 없는 아티스트는 빠짐 */
     @Test
     void countFollowersGroupsByArtist() {
         follow(40, T);
@@ -139,12 +139,12 @@ class MemberQueryRepositoriesTest {
         assertThat(follows.countFollowers(List.of(40L, 41L, 42L))).containsExactlyInAnyOrderEntriesOf(Map.of(40L, 2L, 41L, 1L));
     }
 
-    /** 옵션 단위 — 같은 LP 의 블랙반 · 컬러반은 2행, 같은 옵션을 다시 넣으면 무시 (UNIQUE(user_id, option_id)) */
+    /** 옵션 단위 - 같은 LP 의 블랙반, 컬러반은 2행, 같은 옵션을 다시 넣으면 무시 (UNIQUE(user_id, option_id)) */
     @Test
     void collectionIsKeptPerOptionAndAddIsIdempotent() {
         collections.addIfAbsent(userId, LP, LP_BLACK, CollectionEntity.Source.MANUAL, LocalDate.parse("2026-10-01"));
         collections.addIfAbsent(userId, LP, LP_COLOR, CollectionEntity.Source.PURCHASE, LocalDate.parse("2026-11-05"));
-        collections.addIfAbsent(userId, LP, LP_COLOR, CollectionEntity.Source.MANUAL, LocalDate.parse("2026-11-09"));   // 이미 있음 — 무시
+        collections.addIfAbsent(userId, LP, LP_COLOR, CollectionEntity.Source.MANUAL, LocalDate.parse("2026-11-09"));   // 이미 있음 - 무시
 
         List<CollectionItem> first = collections.findPage(userId, null, 1);
         assertThat(first).extracting(CollectionItem::physicalAlbumId, CollectionItem::optionId, CollectionItem::source,
@@ -154,7 +154,7 @@ class MemberQueryRepositoriesTest {
         assertThat(collections.countByUserId(userId)).isEqualTo(2);
     }
 
-    /** 직접 등록 — 다시 등록하면 기존 항목 그대로 (200) · 날짜가 없으면 오늘 */
+    /** 직접 등록 - 다시 등록하면 기존 항목 그대로 (200), 날짜가 없으면 오늘 */
     @Test
     void addReturnsExistingItemWhenAlreadyRegistered() {
         CollectionItem first = collectionService.add(userId, LP, LP_BLACK, LocalDate.parse("2026-10-01"));
@@ -167,7 +167,7 @@ class MemberQueryRepositoriesTest {
         assertThat(collections.countByUserId(userId)).isEqualTo(2);
     }
 
-    /** 주문 확정 이벤트 — 산 앨범이 PURCHASE 로 들어가고, 탈퇴한 회원(행 없음)이면 오류 없이 건너뜁니다 */
+    /** 주문 확정 이벤트 - 산 앨범이 PURCHASE 로 들어가고, 탈퇴한 회원(행 없음)이면 오류 없이 건너뜁니다 */
     @Test
     void purchasedAlbumsAreAddedAndMissingMemberIsSkipped() {
         collectionService.addPurchased(userId, List.of(new Purchased(LP, LP_BLACK), new Purchased(LP, LP_COLOR)),
@@ -181,7 +181,7 @@ class MemberQueryRepositoriesTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM collection", Integer.class)).isEqualTo(2);
     }
 
-    /** 삭제 · 조회는 본인 항목만 — 남의 항목 · 없는 항목은 404 */
+    /** 삭제, 조회는 본인 항목만 - 남의 항목, 없는 항목은 404 */
     @Test
     void deleteAndGetOnlyOwnItem() {
         long other = newUser();

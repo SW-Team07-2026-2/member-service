@@ -8,7 +8,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** 회원 벡터 형식 — pgvector 텍스트 '[숫자,숫자,…]' 인지만 봅니다. 숫자 개수(차원)는 제한하지 않습니다 */
+/** 회원 벡터 형식 - pgvector 텍스트 '[숫자,숫자,...]' 인지만 봅니다. 숫자 개수(차원)는 제한하지 않습니다 */
 class EmbeddingFormatTest {
 
     @Test

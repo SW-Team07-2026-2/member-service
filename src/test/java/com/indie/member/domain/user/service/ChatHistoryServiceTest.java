@@ -33,8 +33,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 실제 PostgreSQL · Flyway 스키마(chat_message) 위에서 FIFO · 회원 격리 · 동시 추가 · 탈퇴 CASCADE 검증. Docker 가 없으면 건너뜁니다.
- * 테스트 트랜잭션을 끄고 서비스 호출마다 커밋합니다 — 동시 저장을 실제 트랜잭션으로 겨루게 합니다
+ * 실제 PostgreSQL, Flyway 스키마(chat_message) 위에서 FIFO, 회원 격리, 동시 추가, 탈퇴 CASCADE 검증. Docker 가 없으면 건너뜁니다.
+ * 테스트 트랜잭션을 끄고 서비스 호출마다 커밋합니다 - 동시 저장을 실제 트랜잭션으로 겨루게 합니다
  */
 @Testcontainers(disabledWithoutDocker = true)
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=validate")
@@ -73,7 +73,7 @@ class ChatHistoryServiceTest {
         assertThat(storedRows(userId)).isEqualTo(2);
     }
 
-    /** timestamptz 는 시각만 저장합니다 — Z 로 보내도 같은 시각을 +09:00 으로 돌려줍니다 */
+    /** timestamptz 는 시각만 저장합니다 - Z 로 보내도 같은 시각을 +09:00 으로 돌려줍니다 */
     @Test
     void spokenAtKeepsInstantAndIsReturnedInKst() {
         ChatMessage utc = new ChatMessage(ChatMessage.Role.USER, "UTC", OffsetDateTime.parse("2026-11-06T06:30:00Z"));
@@ -103,7 +103,7 @@ class ChatHistoryServiceTest {
         assertThat(service.get(other)).containsExactly(message(2));
     }
 
-    /** 탈퇴(행 삭제)하면 대화도 CASCADE 로 사라지고, 없는 회원은 읽기 · 쓰기 모두 404 */
+    /** 탈퇴(행 삭제)하면 대화도 CASCADE 로 사라지고, 없는 회원은 읽기, 쓰기 모두 404 */
     @Test
     void missingAndWithdrawnMembersCannotReadOrAppend() {
         assertCode(() -> service.get(Long.MAX_VALUE), "NOT_FOUND");
@@ -135,7 +135,7 @@ class ChatHistoryServiceTest {
         assertThat(storedRows(userId)).isEqualTo(50);
         assertThat(retained.subList(0, 34)).containsExactlyElementsOf(IntStream.range(6, 40).mapToObj(ChatHistoryServiceTest::message).toList());
         assertThat(retained.subList(34, 50)).containsExactlyInAnyOrderElementsOf(IntStream.range(40, 56).mapToObj(ChatHistoryServiceTest::message).toList());
-        for (int i = 34; i < 50; i += 2) {   // 한 요청의 질문 · 답변은 붙어서 저장됩니다
+        for (int i = 34; i < 50; i += 2) {   // 한 요청의 질문, 답변은 붙어서 저장됩니다
             int question = Integer.parseInt(retained.get(i).content());
             assertThat(retained.get(i + 1)).isEqualTo(message(question + 1));
         }

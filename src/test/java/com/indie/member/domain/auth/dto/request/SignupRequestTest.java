@@ -11,7 +11,7 @@ import java.util.stream.LongStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 11/08 취향 선택 필수 — 아티스트 0개로는 가입할 수 없습니다 */
+/** 취향 선택 필수 - 아티스트 0개로는 가입할 수 없습니다 */
 class SignupRequestTest {
 
     private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();

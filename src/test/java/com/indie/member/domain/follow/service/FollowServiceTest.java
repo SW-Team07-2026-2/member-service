@@ -17,7 +17,7 @@ import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** 11/24 아티스트 팔로워 수 내부 API — 요청 순서 · 중복 제거 · 팔로워가 없으면 0 · 1~500 개 */
+/** 아티스트 팔로워 수 내부 API - 요청 순서, 중복 제거, 팔로워가 없으면 0, 1~500 개 */
 class FollowServiceTest {
 
     private final FollowRepository repository = mock(FollowRepository.class);

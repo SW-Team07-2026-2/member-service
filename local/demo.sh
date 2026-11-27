@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# 로컬 시연 · 진척도 점검 — 브라우저 대신 curl 로 Gateway(:8080) → Member(:8081) 흐름을 이어서 보여줍니다.
-# 확인 앞의 [GW-n] · [M-n] 은 완료 조건 번호입니다 (20_Gateway_구현명세 §16 · 21_Member_구현명세 §17).
-# 전제: docker compose 인프라 · Member · Gateway 가 local 프로파일로 떠 있어야 합니다 (README 참고). 다른 서비스는 없어도 됩니다.
-# 🔴 15 · 16 단계에서 인증 Redis 와 Kafka 를 잠깐 껐다 켭니다.
+# 로컬 시연, 진척도 점검 - 브라우저 대신 curl 로 Gateway(:8080) -> Member(:8081) 흐름을 이어서 보여줍니다.
+# 확인 앞의 [GW-n], [M-n] 은 완료 조건 번호입니다 (20_Gateway_구현명세 §16, 21_Member_구현명세 §17).
+# 전제: docker compose 인프라, Member, Gateway 가 local 프로파일로 떠 있어야 합니다 (README 참고). 다른 서비스는 없어도 됩니다.
+# 15, 16 단계에서 인증 Redis 와 Kafka 를 잠깐 껐다 켭니다.
 set -uo pipefail
 
 G=${GATEWAY:-http://localhost:8080}
@@ -22,7 +22,7 @@ check() {   # check <설명> <기대> <실제> [본문]
   else FAIL=$((FAIL+1)); printf '  \033[31m✘\033[0m %s → 기대 %s · 실제 %s\n' "$1" "$2" "$3"; fi
   [[ -n "${4:-}" ]] && printf '    %s\n' "$4"
 }
-call()  {   # call <쿠키파일> <메서드> <경로> [추가 curl 옵션...] → "코드<TAB>본문"
+call()  {   # call <쿠키파일> <메서드> <경로> [추가 curl 옵션...] -> "코드<TAB>본문"
   local jar=$1 method=$2 path=$3; shift 3
   local out; out=$(curl -s -b "$jar" -c "$jar" -X "$method" -o "$WORK/body" -w '%{http_code}' "$@" "$G$path")
   printf '%s\t%s' "$out" "$(cat "$WORK/body")"
@@ -32,8 +32,8 @@ field()   { python3 -c 'import json,sys;d=json.loads(sys.argv[1]);d={**d,**d["re
 xsrf()    { awk '$6=="XSRF-TOKEN"{print $7}' "$1"; }
 cookie()  { awk -v n="$2" '$6==n{print $7}' "$1"; }
 urlenc()  { python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "$1"; }
-agree()   { curl -s "$G/api/members/terms" | python3 -c 'import json,sys;print(json.dumps([{"termsId":t["termsId"],"agreed":True} for t in json.load(sys.stdin)["result"]["items"]]))'; }   # 11/05 M24 약관 전체 동의 → G13 agreements
-login()   {   # login <쿠키파일> <닉네임> → "코드<TAB>본문" — 처음이면 OAuth 콜백처럼 사인업 토큰만 받으므로 가입(POST /api/auth/signup)까지
+agree()   { curl -s "$G/api/members/terms" | python3 -c 'import json,sys;print(json.dumps([{"termsId":t["termsId"],"agreed":True} for t in json.load(sys.stdin)["result"]["items"]]))'; }   # M24 약관 전체 동의 -> G13 agreements
+login()   {   # login <쿠키파일> <닉네임> -> "코드<TAB>본문" - 처음이면 OAuth 콜백처럼 사인업 토큰만 받으므로 가입(POST /api/auth/signup)까지
   local r; r=$(call "$1" GET "/dev/login?nickname=$(urlenc "$2")")
   if [[ "$(field "${r#*$'\t'}" newUser)" == True ]]; then
     r=$(call "$1" POST /api/auth/signup -H "X-XSRF-TOKEN: $(xsrf "$1")" -H "$J" -d "{\"artistIds\":[$SIGNUP_ARTIST],\"agreements\":$(agree)}")
@@ -47,15 +47,15 @@ publish() {   # publish <토픽> <JSON>
 }
 now()  { python3 -c 'import datetime;print(datetime.datetime.now(datetime.timezone.utc).isoformat())'; }
 uuid() { uuidgen | tr 'A-Z' 'a-z'; }
-wait_for() {  # wait_for <쿠키파일> <경로> <본문에 들어 있어야 할 문자열> — 컨슈머 반영 대기 (최대 10초)
+wait_for() {  # wait_for <쿠키파일> <경로> <본문에 들어 있어야 할 문자열> - 컨슈머 반영 대기 (최대 10초)
   for _ in $(seq 1 20); do
     [[ "$(call "$1" GET "$2" | cut -f2-)" == *"$3"* ]] && return 0; sleep 0.5
   done; return 1
 }
-jwt() {   # jwt <토큰> <0=헤더|1=본문> — 서명 검증 없이 디코드 (보여주기용)
+jwt() {   # jwt <토큰> <0=헤더|1=본문> - 서명 검증 없이 디코드 (보여주기용)
   python3 -c 'import base64,json,sys;p=sys.argv[1].split(".")[int(sys.argv[2])];print(json.dumps(json.loads(base64.urlsafe_b64decode(p+"="*(-len(p)%4))),ensure_ascii=False))' "$1" "$2"
 }
-itoken() {   # itoken <aud> [시크릿 파일] — Gateway 가 Member 를 부를 때 쓰는 내부 토큰 {iss: gateway} HS256
+itoken() {   # itoken <aud> [시크릿 파일] - Gateway 가 Member 를 부를 때 쓰는 내부 토큰 {iss: gateway} HS256
   python3 -I - "${2:-$B/member-service/local-secrets/internal.shared-secret}" "$1" <<'PY'
 import base64, hmac, hashlib, json, sys, time
 b64 = lambda b: base64.urlsafe_b64encode(b).rstrip(b"=").decode()
@@ -65,7 +65,7 @@ c = b64(json.dumps({"iss": "gateway", "aud": sys.argv[2], "exp": int(time.time()
 print(f"{h}.{c}." + b64(hmac.new(secret, f"{h}.{c}".encode(), hashlib.sha256).digest()))
 PY
 }
-forge() {   # forge <AT> <none|hs256|near-exp> — 위조 토큰 (none · 공개키를 HMAC 키로) · 만료 4분 전 재현(진짜 키로 재서명)
+forge() {   # forge <AT> <none|hs256|near-exp> - 위조 토큰 (none, 공개키를 HMAC 키로), 만료 4분 전 재현(진짜 키로 재서명)
   python3 -I - "$1" "$2" "$B/gateway/local-secrets/jwt-public.pem" "$B/member-service/local-secrets/jwt.private-key" <<'PY'
 import base64, hashlib, hmac, json, subprocess, sys, time
 b64 = lambda b: base64.urlsafe_b64encode(b).rstrip(b"=").decode()
@@ -104,9 +104,9 @@ PY
 S=$(printf '%05d' $((RANDOM % 100000)))
 NICK="데모$S"                                              # 7자 (닉네임 2~10자)
 ARTIST=$((RANDOM % 9000 + 1000))
-SIGNUP_ARTIST=$((ARTIST + 1))                               # 가입 때 고르는 아티스트 (최소 1개 필수) — 5단계 팔로우 검사와 겹치지 않게 다른 ID
+SIGNUP_ARTIST=$((ARTIST + 1))                               # 가입 때 고르는 아티스트 (최소 1개 필수) - 5단계 팔로우 검사와 겹치지 않게 다른 ID
 
-# 사전 확인 — 하나라도 안 떠 있으면 모든 확인이 HTTP 000 으로 실패하므로 여기서 멈춥니다
+# 사전 확인 - 하나라도 안 떠 있으면 모든 확인이 HTTP 000 으로 실패하므로 여기서 멈춥니다
 MISSING=()
 docker info >/dev/null 2>&1 || MISSING+=("Docker Desktop 실행")
 [[ $($DC ps --status running --services 2>/dev/null | grep -c -x -E 'postgres|redis-auth|kafka') == 3 ]] \
@@ -119,7 +119,7 @@ if (( ${#MISSING[@]} )); then
   printf '\033[31m먼저 띄워 주세요 (backend/ 에서 순서대로):\033[0m\n'; printf '  %s\n' "${MISSING[@]}"; exit 1
 fi
 
-# Member 컨슈머가 Kafka 그룹에 붙을 때까지 대기 — Kafka 가 재시작되면 이전 Member 의 컨슈머 기록이
+# Member 컨슈머가 Kafka 그룹에 붙을 때까지 대기 - Kafka 가 재시작되면 이전 Member 의 컨슈머 기록이
 # 세션 시간(45초)이 지나 정리될 때까지 새 컨슈머가 파티션을 못 받아 6단계 첫 메시지를 놓칩니다
 for i in $(seq 1 60); do
   $DC exec -T kafka /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 \

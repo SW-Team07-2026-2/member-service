@@ -7,4 +7,11 @@ package com.indie.member.domain.auth.repository;
 public interface BlacklistWriter {
 
     void register(String jti, long accessTokenExpEpochSeconds);
+
+    /**
+     * 탈퇴한 회원의 모든 AT 차단 - Gateway BlacklistFilter 가 jti 와 함께 조회합니다. TTL 은 AT 수명이라 그 뒤에는 남은 토큰이 없습니다.
+     *
+     * @param userId 탈퇴한 회원 ID
+     */
+    void registerWithdrawn(long userId);
 }

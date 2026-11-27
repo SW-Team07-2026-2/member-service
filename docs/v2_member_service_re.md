@@ -978,7 +978,7 @@ v2 구현 뒤에 남아 있던, 이름만 남았거나 아무도 쓰지 않는 �
 
 **아직 정하지 않은 것**
 - ~~새 이벤트 토픽 이름~~ → 11/13 catalog · concert가 7장의 이름 그대로 구현해 확정되었습니다
-- **탈퇴 직후 다른 기기의 접근 토큰:** Gateway가 Member의 `/internal/members/{userId}/exists`를 확인해 삭제된 회원의 보호 API 요청을 401로 거절합니다. 결과는 캐시하지 않으며 Member 확인 실패는 503입니다. 배포 순서는 Member 먼저, Gateway 다음입니다.
+- **탈퇴 직후 다른 기기의 접근 토큰:** 탈퇴가 커밋되면 Member 가 인증용 Redis 에 `member:withdrawn:{userId}` 를 AT 수명(30분)만큼 남기고, Gateway BlacklistFilter 가 jti 블랙리스트와 한 번에(MGET) 확인해 보호 경로는 401 TOKEN_REVOKED, 공개 경로는 익명으로 보냅니다. Redis 장애 때는 로그아웃과 같이 통과합니다 (요청마다 Member 를 부르지 않음).
 - 회원 데이터 키를 AI의 어느 서비스가 가질지 (문서에서는 chatbot-service로 가정)
 - PRIVACY 동의 약관 버전이 올라갈 때 기존 회원에게 재동의를 받을지
 - 탈퇴할 때 카카오 로그인 연결 끊기(unlink)를 호출할지

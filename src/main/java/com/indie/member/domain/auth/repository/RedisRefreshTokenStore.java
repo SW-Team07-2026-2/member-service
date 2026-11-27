@@ -19,21 +19,16 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * RT 저장 · 회전 · 재사용 탐지 (§7-2 · §8). 인증용 Redis (noeviction 이어야 무작위 로그아웃이 없습니다).
- * <pre>
- * auth:rt:{sha256(rt)}       → {"userId","issuedAt"}  TTL 14일   ★ 원문을 저장하지 않습니다
- * auth:rt:user:{userId}      → SET of hash            TTL 14일   전체 폐기용
- * auth:rt:used:{sha256(rt)}  → 회전된 RT 의 원래 값    TTL 60초   재사용 탐지 창
- * </pre>
- * 발급 · 회전은 Lua 하나로 원자 처리합니다 (resources/redis) — 탭 2개가 동시에 갱신해도 한쪽만 성공합니다.
+ * 인증용 Redis에 리프레시 토큰의 해시와 회원별 토큰 목록을 저장합니다.
+ * 발급과 회전은 Lua로 원자 처리하고 사용한 토큰의 해시는 재사용 탐지 기간 동안 유지합니다.
  */
 @Component
 public class RedisRefreshTokenStore implements RefreshTokenStore {
 
-    /** auth:rt:{hash} 의 값 — Lua(cjson)가 쓰고 Java 는 refreshTokenRedis 로 읽습니다 */
+    /** auth:rt:{hash} 의 값 - Lua(cjson)가 쓰고 Java 는 refreshTokenRedis 로 읽습니다 */
     public record StoredToken(String userId, String issuedAt) {}
 
-    private static final SecureRandom RANDOM = new SecureRandom();   // 🔴 Random · UUID 금지 — 예측 가능
+    private static final SecureRandom RANDOM = new SecureRandom();   // Random, UUID 금지 - 예측 가능
     private static final long USED_MARK_TTL_SECONDS = 60;
 
     private static final RedisScript<Long> CREATE =
@@ -78,7 +73,7 @@ public class RedisRefreshTokenStore implements RefreshTokenStore {
         return new Rotation(Rotation.Status.valueOf(status), userId, status.equals("OK") ? newToken : null);
     }
 
-    /** 로그아웃 — 해당 RT 1건 */
+    /** 로그아웃 - 해당 RT 1건 */
     @Override
     public void revoke(String refreshToken) {
         String hash = hash(refreshToken);
@@ -98,7 +93,7 @@ public class RedisRefreshTokenStore implements RefreshTokenStore {
         }
     }
 
-    /** 전 디바이스 로그아웃 · 재사용 탐지 · 탈퇴 */
+    /** 전 디바이스 로그아웃, 재사용 탐지, 탈퇴 */
     @Override
     public void revokeAll(long userId) {
         Set<String> hashes = redis.opsForSet().members(userSetKey(userId));

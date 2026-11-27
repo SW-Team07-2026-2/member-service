@@ -19,11 +19,7 @@ import java.util.Date;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * AT 서명 (RS256) — 시스템에서 토큰을 만들 수 있는 유일한 곳.
- * 🔴 이메일 · 닉네임 · 프로필 URL 을 넣지 않습니다. JWT 는 누구나 디코드할 수 있고,
- * 값이 바뀌면 최대 30분간 토큰이 거짓 정보를 전달합니다.
- */
+/** Member에서 접근 토큰을 RS256으로 서명합니다. 변경 가능한 이메일, 닉네임과 프로필 주소는 토큰에 넣지 않습니다. */
 @Component
 public class JwtTokenIssuer implements TokenIssuer {
 
@@ -53,7 +49,7 @@ public class JwtTokenIssuer implements TokenIssuer {
                 .expirationTime(Date.from(now.plusSeconds(props.atTtlSeconds())))
                 .build();
         JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.RS256)
-                .keyID(keys.active().getKeyID())             // ★ kid 없으면 롤링 시 전원 로그아웃
+                .keyID(keys.active().getKeyID())             // kid 없으면 롤링 시 전원 로그아웃
                 .type(JOSEObjectType.JWT)
                 .build();
         SignedJWT jwt = new SignedJWT(header, claims);
@@ -65,7 +61,7 @@ public class JwtTokenIssuer implements TokenIssuer {
         return jwt.serialize();
     }
 
-    /** 키 롤링 중에는 신 · 구 공개키 2개 */
+    /** 키 롤링 중에는 신, 구 공개키 2개 */
     @Override
     public Map<String, Object> publicJwks() {
         return jwks;

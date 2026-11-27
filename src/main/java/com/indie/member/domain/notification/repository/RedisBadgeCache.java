@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 import java.util.Optional;
 
-/** member:badge:{userId} · 30초 (프론트가 30초 폴링합니다). Redis 장애는 로그만 남기고 넘어갑니다 */
+/** member:badge:{userId}, 30초 (프론트가 30초 폴링합니다). Redis 장애는 로그만 남기고 넘어갑니다 */
 @Component
 public class RedisBadgeCache implements BadgeCache {
 

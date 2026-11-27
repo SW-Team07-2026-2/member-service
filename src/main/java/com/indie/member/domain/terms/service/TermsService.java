@@ -26,7 +26,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * 약관 · 동의 (docs/25 §1-2 · §1-3). users ─< user_terms >─ terms · 이력은 INSERT 만.
+ * 약관, 동의 (docs/25 §1-2, §1-3). users ─< user_terms >─ terms, 이력은 INSERT 만.
  * 현재 버전 = 약관 코드마다 effective_at 이 지난 것 중 가장 늦은 것.
  */
 @Service
@@ -42,14 +42,18 @@ public class TermsService {
         this.clock = clock;
     }
 
-    /** M24 — 동의받는 약관만, 코드마다 현재 버전 하나 · 가입 화면 순서 (TermsCode 선언 순서) */
+    /** M24 - 동의받는 약관만, 코드마다 현재 버전 하나, 가입 화면 순서 (TermsCode 선언 순서) */
     @Transactional(readOnly = true)
     public List<TermsEntity> current() {
         return termsRepository.findCurrent(TermsCode.consents(), now()).stream()
                 .sorted(Comparator.comparing(TermsEntity::getCode)).toList();
     }
 
-    /** M25 — 문서 하나의 현재 버전 (푸터 약관 화면 · 게시 문서 포함) */
+    /**
+     * M25 - 문서 하나의 현재 버전 (푸터 약관 화면, 게시 문서 포함)
+     *
+     * @param code 약관 또는 인증 코드
+     */
     @Transactional(readOnly = true)
     public TermsEntity document(TermsCode code) {
         return termsRepository.findCurrent(List.of(code), now()).stream().findFirst()
@@ -57,8 +61,10 @@ public class TermsService {
     }
 
     /**
-     * 가입 동의 검사 — 🔴 사인업 토큰을 쓰기 전에 부릅니다 (실패해도 고쳐서 다시 보낼 수 있게).
-     * 현재 약관마다 한 건으로 펴서 돌려줍니다 — 보내지 않은 선택 약관은 agreed=false.
+     * 가입 동의 검사 - 사인업 토큰을 쓰기 전에 부릅니다 (실패해도 고쳐서 다시 보낼 수 있게).
+     * 현재 약관마다 한 건으로 펴서 돌려줍니다 - 보내지 않은 선택 약관은 agreed=false.
+     *
+     * @param agreements 약관별 동의 내역
      */
     @Transactional(readOnly = true)
     public List<TermsAgreement> checkSignup(List<TermsAgreement> agreements) {
@@ -67,7 +73,7 @@ public class TermsService {
         Map<Long, Boolean> sent = new HashMap<>();
         for (TermsAgreement a : agreements == null ? List.<TermsAgreement>of() : agreements) {
             if (!byId.containsKey(a.termsId())) {
-                throw new GeneralException(TermsErrorCode.TERMS_OUTDATED);   // 가입 도중 약관이 바뀜 · 없는 id
+                throw new GeneralException(TermsErrorCode.TERMS_OUTDATED);   // 가입 도중 약관이 바뀜, 없는 id
             }
             sent.put(a.termsId(), a.agreed());
         }
@@ -77,7 +83,12 @@ public class TermsService {
         return current.stream().map(t -> new TermsAgreement(t.getId(), sent.getOrDefault(t.getId(), false))).toList();
     }
 
-    /** 가입 트랜잭션 안에서 — checkSignup 이 편 목록 그대로 */
+    /**
+     * 가입 트랜잭션 안에서 - checkSignup 이 편 목록 그대로
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param agreements 약관별 동의 내역
+     */
     @Transactional
     public void recordSignup(long userId, List<TermsAgreement> agreements) {
         OffsetDateTime now = now();
@@ -85,14 +96,23 @@ public class TermsService {
                 .map(a -> UserTermsEntity.of(userId, a.termsId(), a.agreed(), Channel.SIGNUP, now)).toList());
     }
 
-    /** M17 — 약관 코드마다 마지막 기록 (버전이 바뀌어도 코드 기준) · 가입 화면 순서 */
+    /**
+     * M17 - 약관 코드마다 마지막 기록 (버전이 바뀌어도 코드 기준), 가입 화면 순서
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     */
     @Transactional(readOnly = true)
     public List<AgreementItem> myAgreements(long userId) {
         return userTermsRepository.findLatest(userId).stream()
                 .sorted(Comparator.comparing(AgreementItem::code)).toList();
     }
 
-    /** M18 — 현재 마케팅 약관으로 이력 1행 (channel=MY). 지금 값과 같으면 남기지 않고 마지막 기록을 돌려줍니다 */
+    /**
+     * M18 - 현재 마케팅 약관으로 이력 1행 (channel=MY). 지금 값과 같으면 남기지 않고 마지막 기록을 돌려줍니다
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param agreed 마케팅 수신 동의 여부
+     */
     @Transactional
     public MarketingView changeMarketing(long userId, boolean agreed) {
         Optional<AgreementItem> last = myAgreements(userId).stream()
@@ -105,7 +125,7 @@ public class TermsService {
         return new MarketingView(agreed, now);
     }
 
-    /** DB(timestamptz) 정밀도와 같게 — 응답의 at 과 다시 읽은 at 이 같아야 합니다 */
+    /** DB(timestamptz) 정밀도와 같게 - 응답의 at 과 다시 읽은 at 이 같아야 합니다 */
     private OffsetDateTime now() {
         return OffsetDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
     }

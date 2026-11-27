@@ -14,7 +14,7 @@ import java.util.List;
 import static com.indie.member.domain.terms.entity.QTermsEntity.termsEntity;
 import static com.indie.member.domain.terms.entity.QUserTermsEntity.userTermsEntity;
 
-/** UserTermsRepository 구현 — 쓰기는 Spring Data, 마지막 기록은 QueryDSL (같은 약관 코드에 더 늦은 기록이 없는 행) */
+/** UserTermsRepository 구현 - 쓰기는 Spring Data, 마지막 기록은 QueryDSL (같은 약관 코드에 더 늦은 기록이 없는 행) */
 @Repository
 public class UserTermsRepositoryAdapter implements UserTermsRepository {
 

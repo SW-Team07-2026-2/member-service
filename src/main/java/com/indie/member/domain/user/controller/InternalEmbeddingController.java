@@ -13,10 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * GET · PUT /internal/members/{userId}/embedding — AI 서비스용 회원 벡터 조회 · 저장.
- * /internal/** 이라 InternalTokenFilter 가 먼저 동작합니다 (외부 사용자 경로에 노출하지 않습니다).
- */
+/** AI -> Gateway 서명 경로 -> Member 회원 벡터 조회와 저장. 내부 토큰으로 인증합니다. */
 @RestController
 @RequestMapping("/internal/members/{userId}/embedding")
 public class InternalEmbeddingController {
@@ -27,11 +24,22 @@ public class InternalEmbeddingController {
         this.embeddingService = embeddingService;
     }
 
+    /**
+     * 회원 벡터를 조회합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     */
     @GetMapping
     public ApiResponse<EmbeddingResponse> get(@PathVariable long userId) {
         return ApiResponse.onSuccess(embeddingService.get(userId));
     }
 
+    /**
+     * 회원 벡터를 저장합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param request 저장할 회원 벡터
+     */
     @PutMapping
     public ApiResponse<EmbeddingSaved> save(@PathVariable long userId, @Valid @RequestBody EmbeddingRequest request) {
         return ApiResponse.onSuccess(embeddingService.save(userId, request.embedding()));

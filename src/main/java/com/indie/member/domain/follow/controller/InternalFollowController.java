@@ -13,9 +13,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * GET /internal/members/{userId}/follows — Catalog · Concert 의 팔로우 탭 (11/19). 팔로우 전용 포트(8181)로만 · 발급자는 follow-issuers(catalog · concert)만.
- * 팔로우 전부를 최근 팔로우순으로 — 정렬 · 거르기는 부른 쪽이 합니다.
- * GET /internal/artists/follower-counts?artistIds=1,2 — 11/24 Catalog artist.follower_count 갱신. 같은 포트 · 같은 발급자 (회원 정보 없이 숫자만).
+ * Catalog 또는 Concert -> Member 팔로우 전용 포트(8181).
+ * 최근 팔로우순 목록과 아티스트별 팔로워 수를 내부 토큰으로 조회합니다.
  */
 @RestController
 public class InternalFollowController {
@@ -26,11 +25,21 @@ public class InternalFollowController {
         this.followService = followService;
     }
 
+    /**
+     * 회원의 전체 팔로우 목록을 최근순으로 반환합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     */
     @GetMapping("/internal/members/{userId}/follows")
     public ApiResponse<Map<String, List<FollowSummary>>> follows(@PathVariable long userId) {
         return ApiResponse.onSuccess(Map.of("items", followService.summaries(userId)));
     }
 
+    /**
+     * 아티스트별 현재 팔로워 수를 반환합니다.
+     *
+     * @param artistIds 대상 아티스트 ID 목록
+     */
     @GetMapping("/internal/artists/follower-counts")
     public ApiResponse<Map<String, List<ArtistFollowerCount>>> followerCounts(@RequestParam List<Long> artistIds) {
         return ApiResponse.onSuccess(Map.of("items", followService.followerCounts(artistIds)));

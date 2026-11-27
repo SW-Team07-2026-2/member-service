@@ -28,7 +28,14 @@ public class CollectionService {
         this.clock = clock;
     }
 
-    /** 직접 등록 — 이미 등록한 옵션이면 기존 행을 그대로 돌려줍니다 (200). acquiredAt 이 없으면 오늘 */
+    /**
+     * 직접 등록 - 이미 등록한 옵션이면 기존 행을 그대로 돌려줍니다 (200). acquiredAt 이 없으면 오늘
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param physicalAlbumId 피지컬 앨범 상품 ID
+     * @param optionId 상품 옵션 ID
+     * @param acquiredAt 음반을 취득한 날짜
+     */
     @Transactional
     public CollectionItem add(long userId, long physicalAlbumId, long optionId, LocalDate acquiredAt) {
         collectionRepository.addIfAbsent(userId, physicalAlbumId, optionId, CollectionEntity.Source.MANUAL,
@@ -37,7 +44,13 @@ public class CollectionService {
                 .orElseThrow(() -> new GeneralException(CommonErrorCode.NOT_FOUND));   // 회원이 없음 (탈퇴 직후 요청)
     }
 
-    /** 주문 확정 이벤트 — 산 피지컬 앨범을 한 트랜잭션에 넣습니다. UNIQUE(user_id, option_id) 라 중복 소비에도 멱등 */
+    /**
+     * 주문 확정 이벤트 - 산 피지컬 앨범을 한 트랜잭션에 넣습니다. UNIQUE(user_id, option_id) 라 중복 소비에도 멱등
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param albums 구매한 피지컬 앨범 목록
+     * @param acquiredAt 음반을 취득한 날짜
+     */
     @Transactional
     public void addPurchased(long userId, List<Purchased> albums, LocalDate acquiredAt) {
         for (Purchased album : albums) {
@@ -46,20 +59,36 @@ public class CollectionService {
         }
     }
 
-    /** 소유권이 없으면 403 이 아니라 404 — 403 은 "그 자원이 존재한다"는 정보를 흘립니다 */
+    /**
+     * 소유권이 없으면 403 이 아니라 404 - 403 은 "그 자원이 존재한다"는 정보를 흘립니다
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param id 보유 음반 ID
+     */
     @Transactional(readOnly = true)
     public CollectionItem get(long userId, long id) {
         return collectionRepository.findByIdAndUserId(id, userId).map(CollectionItem::of)
                 .orElseThrow(() -> new GeneralException(CommonErrorCode.NOT_FOUND));
     }
 
-    /** 커서 id 단독 (최근 추가순) */
+    /**
+     * 커서 id 단독 (최근 추가순)
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param cursor 다음 조회 시작점을 나타내는 커서
+     * @param size 페이지당 조회 개수
+     */
     @Transactional(readOnly = true)
     public CursorPage<CollectionItem> list(long userId, Cursor cursor, int size) {
         return CursorPage.of(collectionRepository.findPage(userId, cursor, size + 1), size, r -> new Cursor(null, r.id()));
     }
 
-    /** 직접 등록한 항목과 구매로 추가된 항목 모두 지울 수 있습니다. 없는 항목 · 남의 항목은 404 */
+    /**
+     * 직접 등록한 항목과 구매로 추가된 항목 모두 지울 수 있습니다. 없는 항목, 남의 항목은 404
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param id 보유 음반 ID
+     */
     @Transactional
     public void delete(long userId, long id) {
         if (!collectionRepository.delete(id, userId)) {

@@ -10,7 +10,7 @@ import java.time.OffsetDateTime;
 import java.util.Optional;
 
 /**
- * 회원 벡터 조회 · 저장 — 저장 · 삭제 메서드를 일부러 열지 않았습니다 (Repository 마커).
+ * 회원 벡터 조회, 저장 - 저장, 삭제 메서드를 일부러 열지 않았습니다 (Repository 마커).
  * 회원 행은 UserEntity 가 만들고 지우며, 여기서는 벡터 컬럼만 UPDATE 합니다.
  */
 public interface UserEmbeddingRepository extends Repository<UserEmbeddingEntity, Long> {

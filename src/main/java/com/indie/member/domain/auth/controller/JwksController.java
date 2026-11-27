@@ -9,10 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.Duration;
 import java.util.Map;
 
-/**
- * GET /.well-known/jwks.json — 내부 토큰 불필요. 외부로는 Gateway 가 라우팅하지 않아 보이지 않습니다.
- * 키 롤링 중에는 신 · 구 공개키 2개를 함께 응답합니다. 캐시 10분 — Gateway 의 JWKS 캐시와 맞춥니다.
- */
+/** Gateway -> Member JWKS 공개키 조회. 키 교체 중에는 신구 공개키를 함께 반환하고 10분간 캐시합니다. */
 @RestController
 public class JwksController {
 
@@ -22,6 +19,7 @@ public class JwksController {
         this.jwks = tokenIssuer.publicJwks();
     }
 
+    /** 검증용 공개키 목록을 반환합니다. */
     @GetMapping("/.well-known/jwks.json")
     public ResponseEntity<Map<String, Object>> jwks() {
         return ResponseEntity.ok()

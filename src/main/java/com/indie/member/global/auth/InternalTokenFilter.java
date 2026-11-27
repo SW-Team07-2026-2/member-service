@@ -25,17 +25,8 @@ import java.util.Date;
 import java.util.List;
 
 /**
- * /internal/** 전용 — X-Internal-Token (HS256 · 공유 시크릿) 검증 (§13).
- * <pre>
- * ① 헤더 없음 → 401 INTERNAL_TOKEN_REQUIRED   ② 서명 · ③ iss/aud · exp 없음 → 401 INTERNAL_TOKEN_INVALID (사유는 로그)
- * ④ exp(+30초) 지남 → 401 INTERNAL_TOKEN_EXPIRED
- * ⑤ 발급자는 경로로 나눕니다 — /internal/admin/** 는 admin-issuers(studio)만, 그 밖은 allowed-issuers(gateway)만.
- *   관리자 토큰으로 토큰 발급 · 가입을 부를 수 없고, Gateway 토큰으로 관리자 조회를 부를 수 없습니다.
- *   ✏️ 11/19 /internal/members/{userId}/follows 는 follow-issuers(catalog · concert)만 — 팔로우 탭. 그 토큰으로 다른 내부 API 는 못 부릅니다.
- *   이 경로는 팔로우 전용 포트로만 들어옵니다 (FollowsPortFilter).
- * </pre>
- * 🔴 이 필터 없이 배포되면 클러스터 안의 누구든 임의 사용자의 토큰을 발급받을 수 있습니다.
- * 🔴 X-User-Id 를 신뢰하지 않습니다 — 내부 API 의 사용자 식별은 요청 본문 값으로 합니다.
+ * 내부 토큰의 서명, 발급자, 대상과 만료 시각을 검증합니다.
+ * Gateway, Studio와 팔로우 조회 서비스의 허용 경로를 분리합니다.
  */
 public class InternalTokenFilter extends OncePerRequestFilter {
 
@@ -79,11 +70,11 @@ public class InternalTokenFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
-    /** 통과면 null — 아니면 거절 사유 (expired 만 응답 코드가 다르고 나머지는 로그로만 구분) */
+    /** 통과면 null - 아니면 거절 사유 (expired 만 응답 코드가 다르고 나머지는 로그로만 구분) */
     private String check(String token, List<String> issuers) {
         try {
             SignedJWT jwt = SignedJWT.parse(token);
-            if (!JWSAlgorithm.HS256.equals(jwt.getHeader().getAlgorithm())) return "alg";   // ★ alg 고정
+            if (!JWSAlgorithm.HS256.equals(jwt.getHeader().getAlgorithm())) return "alg";   // alg 고정
             if (!jwt.verify(verifier)) return "signature";
             JWTClaimsSet claims = jwt.getJWTClaimsSet();
             if (claims.getIssuer() == null || !issuers.contains(claims.getIssuer())) return "issuer";

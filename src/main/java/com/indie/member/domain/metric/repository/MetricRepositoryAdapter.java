@@ -21,7 +21,7 @@ import static com.indie.member.domain.metric.entity.QUserMetricEntity.userMetric
 
 /**
  * MetricRepository 구현.
- * 저장은 HQL insert … values (…), (…) on conflict (id) do nothing — 최대 50건을 한 문장으로 넣습니다.
+ * 저장은 HQL insert ... values (...), (...) on conflict (id) do nothing - 최대 50건을 한 문장으로 넣습니다.
  */
 @Repository
 public class MetricRepositoryAdapter implements MetricRepository {
@@ -121,7 +121,7 @@ public class MetricRepositoryAdapter implements MetricRepository {
         return where;
     }
 
-    /** (occurred_at, metric_id) < (cursor.at, cursor.id) — CursorPredicates.before 와 같은 모양 (id 가 UUID) */
+    /** (occurred_at, metric_id) < (cursor.at, cursor.id) - CursorPredicates.before 와 같은 모양 (id 가 UUID) */
     private static BooleanExpression before(MetricCursor cursor) {
         if (cursor == null) {
             return null;

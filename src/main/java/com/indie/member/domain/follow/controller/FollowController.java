@@ -20,10 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
-/**
- * 공개 API 4 ~ 7 — 팔로우.
- * 🔴 POST · DELETE 는 멱등입니다. 더블클릭 · 네트워크 재시도로 중복 호출이 일상이라 409 를 내지 않습니다.
- */
+/** 프론트 -> Gateway -> Member 팔로우 API. 등록과 해제는 중복 요청에도 같은 결과를 반환합니다. */
 @RestController
 @Validated
 @RequestMapping("/api/members/follows")
@@ -37,18 +34,37 @@ public class FollowController {
         this.pageSize = pageSize;
     }
 
+    /**
+     * 팔로우 아티스트를 팔로우합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param artistId 아티스트 ID
+     */
     @PostMapping("/{artistId}")
     public ApiResponse<Map<String, Object>> follow(@CurrentUser Long userId, @PathVariable @Positive long artistId) {
         followService.follow(userId, artistId);
         return ApiResponse.onSuccess(Map.of("artistId", artistId, "following", true));
     }
 
+    /**
+     * 팔로우 아티스트 팔로우를 해제합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param artistId 아티스트 ID
+     */
     @DeleteMapping("/{artistId}")
     public ResponseEntity<Void> unfollow(@CurrentUser Long userId, @PathVariable @Positive long artistId) {
         followService.unfollow(userId, artistId);
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * 팔로우 목록을 조회합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param cursor 다음 조회 시작점을 나타내는 커서
+     * @param size 페이지당 조회 개수
+     */
     @GetMapping
     public ApiResponse<CursorPage<FollowItem>> list(@CurrentUser Long userId,
                                                      @RequestParam(required = false) String cursor,
@@ -56,6 +72,12 @@ public class FollowController {
         return ApiResponse.onSuccess(followService.list(userId, Cursor.decode(cursor), pageSize.resolve(size)));
     }
 
+    /**
+     * 팔로우 팔로우 여부를 조회합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param artistId 아티스트 ID
+     */
     @GetMapping("/{artistId}")
     public ApiResponse<Map<String, Object>> isFollowing(@CurrentUser Long userId, @PathVariable @Positive long artistId) {
         return ApiResponse.onSuccess(Map.of("following", followService.isFollowing(userId, artistId)));

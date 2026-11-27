@@ -12,15 +12,15 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 
 /**
- * 행동 메트릭 보관 6개월 — 하루 1번 지난 행을 지웁니다.
- * BATCH 건씩 끊어 커밋합니다. replica 2 가 같이 돌아도 기간 조건 삭제라 결과가 같습니다 — 락을 두지 않습니다.
+ * 행동 메트릭 보관 6개월 - 하루 1번 지난 행을 지웁니다.
+ * BATCH 건씩 끊어 커밋합니다. replica 2 가 같이 돌아도 기간 조건 삭제라 결과가 같습니다 - 락을 두지 않습니다.
  */
 @Component
 public class MetricRetentionJob {
 
     private static final Logger log = LoggerFactory.getLogger(MetricRetentionJob.class);
     private static final int BATCH = 1000;
-    private static final int MAX_ROUNDS = 500;             // 한 번 실행에 최대 50만 건 — 남으면 다음 날 이어서
+    private static final int MAX_ROUNDS = 500;             // 한 번 실행에 최대 50만 건 - 남으면 다음 날 이어서
 
     private final MetricRepository metricRepository;
     private final TransactionTemplate transaction;

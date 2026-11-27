@@ -26,9 +26,8 @@ import java.util.Date;
 import java.util.UUID;
 
 /**
- * 사인업 토큰 (HS256) — 처음 로그인한 사람에게 회원 대신 주는 가입 증표. AT 와 다른 키(signup.token-secret)로 서명합니다.
- * 클레임은 신규 여부 · 누구인지(provider · providerUid) · jti 뿐입니다 — 이메일 · 닉네임 · 동의 내역은 Redis 가입 대기 값에 둡니다 (JWT 는 누구나 디코드).
- * 1회용은 Redis 가 보장합니다 — 서명이 맞아도 Redis 의 jti 와 다르면(다시 로그인했거나 이미 가입) 거절.
+ * 신규 로그인 사용자에게 일회용 HS256 가입 토큰을 발급합니다.
+ * 프로필은 Redis에 보관하고 가입 시 Redis의 jti와 대조해 재사용을 막습니다.
  */
 @Component
 public class SignupTokens {
@@ -49,6 +48,12 @@ public class SignupTokens {
         this.clock = clock;
     }
 
+    /**
+     * 일회용 가입 토큰을 발급합니다.
+     *
+     * @param provider OAuth 제공자
+     * @param providerUid OAuth 제공자의 회원 식별자
+     */
     public Issued issue(UserEntity.Provider provider, String providerUid) {
         Instant now = clock.instant();
         String jti = UUID.randomUUID().toString();
@@ -71,8 +76,9 @@ public class SignupTokens {
     }
 
     /**
-     * 서명 · type · 클레임이 맞고 만료 전이면 클레임.
-     * 30분이 지났으면 401 SIGNUP_EXPIRED, 위조 · 형식 오류면 401 SIGNUP_INVALID (어느 검사에서 걸렸는지는 로그로만)
+     * 가입 토큰의 서명과 클레임을 검증합니다.
+     *
+     * @param token 검증하거나 저장할 토큰
      */
     public Claims verify(String token) {
         try {
@@ -102,6 +108,7 @@ public class SignupTokens {
         return new GeneralException(AuthErrorCode.SIGNUP_INVALID);
     }
 
+    /** 가입 토큰의 유효 시간을 초 단위로 반환합니다. */
     public long ttlSeconds() {
         return ttlSeconds;
     }

@@ -37,7 +37,12 @@ public class FollowService {
         this.clock = clock;
     }
 
-    /** ★ 팔로우와 이벤트를 같은 트랜잭션에 — 실제로 새로 팔로우한 경우에만 발행 */
+    /**
+     * 팔로우와 이벤트를 같은 트랜잭션에 - 실제로 새로 팔로우한 경우에만 발행
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param artistId 아티스트 ID
+     */
     @Transactional
     public void follow(long userId, long artistId) {
         if (followRepository.add(userId, artistId)) {
@@ -46,6 +51,12 @@ public class FollowService {
         }
     }
 
+    /**
+     * 팔로우 아티스트 팔로우를 해제합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param artistId 아티스트 ID
+     */
     @Transactional
     public void unfollow(long userId, long artistId) {
         if (followRepository.remove(userId, artistId)) {
@@ -54,25 +65,45 @@ public class FollowService {
         }
     }
 
+    /**
+     * 팔로우 팔로우 여부를 조회합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param artistId 아티스트 ID
+     */
     @Transactional(readOnly = true)
     public boolean isFollowing(long userId, long artistId) {
         return followRepository.exists(userId, artistId);
     }
 
-    /** 커서 (followed_at, artist_id). 아티스트 이름은 catalog 스키마라 조인할 수 없어 ID 만 돌려줍니다 */
+    /**
+     * 커서 (followed_at, artist_id). 아티스트 이름은 catalog 스키마라 조인할 수 없어 ID 만 돌려줍니다
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param cursor 다음 조회 시작점을 나타내는 커서
+     * @param size 페이지당 조회 개수
+     */
     @Transactional(readOnly = true)
     public CursorPage<FollowItem> list(long userId, Cursor cursor, int size) {
         return CursorPage.of(followRepository.findPage(userId, cursor, size + 1), size,
                 r -> new Cursor(r.followedAt(), r.artistId()));
     }
 
-    /** 내부 API — 팔로우 전부 (11/19 팔로우 탭 정렬용 · 상한 MAX_SUMMARIES) */
+    /**
+     * 내부 API - 팔로우 전부 (팔로우 탭 정렬용, 상한 MAX_SUMMARIES)
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     */
     @Transactional(readOnly = true)
     public List<FollowSummary> summaries(long userId) {
         return followRepository.findSummaries(userId, MAX_SUMMARIES);
     }
 
-    /** 내부 API — 요청한 아티스트마다 지금 팔로워 수 (요청 순서 · 중복 제거 · 팔로워가 없으면 0). 1~MAX_FOLLOWER_COUNT_IDS 개 */
+    /**
+     * 내부 API - 요청한 아티스트마다 지금 팔로워 수 (요청 순서, 중복 제거, 팔로워가 없으면 0). 1~MAX_FOLLOWER_COUNT_IDS 개
+     *
+     * @param artistIds 대상 아티스트 ID 목록
+     */
     @Transactional(readOnly = true)
     public List<ArtistFollowerCount> followerCounts(List<Long> artistIds) {
         List<Long> ids = artistIds.stream().distinct().toList();

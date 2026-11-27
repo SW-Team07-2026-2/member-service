@@ -20,10 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 공개 API 15 · 16 — 보유 음반 (피지컬 앨범의 옵션 단위).
- * GET /{collectionId} 는 16종 밖이지만 DoD #16(남의 id 로 조회 → 404)을 검증할 경로로 둡니다.
- */
+/** 프론트 -> Gateway -> Member 보유 음반 API. 회원 본인의 옵션별 소장 내역을 조회하고 관리합니다. */
 @RestController
 @Validated
 @RequestMapping("/api/members/collections")
@@ -37,6 +34,13 @@ public class CollectionController {
         this.pageSize = pageSize;
     }
 
+    /**
+     * 보유 음반 목록을 조회합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param cursor 다음 조회 시작점을 나타내는 커서
+     * @param size 페이지당 조회 개수
+     */
     @GetMapping
     public ApiResponse<CursorPage<CollectionItem>> list(@CurrentUser Long userId,
                                                              @RequestParam(required = false) String cursor,
@@ -44,16 +48,34 @@ public class CollectionController {
         return ApiResponse.onSuccess(collectionService.list(userId, Cursor.decode(cursor), pageSize.resolve(size)));
     }
 
+    /**
+     * 보유 음반 상세를 조회합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param collectionId 보유 음반 ID
+     */
     @GetMapping("/{collectionId}")
     public ApiResponse<CollectionItem> get(@CurrentUser Long userId, @PathVariable @Positive long collectionId) {
         return ApiResponse.onSuccess(collectionService.get(userId, collectionId));
     }
 
+    /**
+     * 보유 음반 정보를 추가합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param request 소장할 피지컬 앨범과 옵션, 취득일
+     */
     @PostMapping
     public ApiResponse<CollectionItem> add(@CurrentUser Long userId, @Valid @RequestBody CollectionAddRequest request) {
         return ApiResponse.onSuccess(collectionService.add(userId, request.physicalAlbumId(), request.optionId(), request.acquiredAt()));
     }
 
+    /**
+     * 보유 음반 정보를 삭제합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param collectionId 보유 음반 ID
+     */
     @DeleteMapping("/{collectionId}")
     public ApiResponse<Void> delete(@CurrentUser Long userId, @PathVariable @Positive long collectionId) {
         collectionService.delete(userId, collectionId);

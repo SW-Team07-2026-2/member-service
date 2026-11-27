@@ -11,7 +11,7 @@ import jakarta.persistence.Table;
 
 import java.time.OffsetDateTime;
 
-/** chat_message — 챗봇 장기기억. 메시지 1개 = 1행 · 회원당 최근 50행 (id 가 저장 순서) */
+/** chat_message - 챗봇 장기기억. 메시지 1개 = 1행, 회원당 최근 50행 (id 가 저장 순서) */
 @Entity
 @Table(name = "chat_message")
 public class ChatMessageEntity {

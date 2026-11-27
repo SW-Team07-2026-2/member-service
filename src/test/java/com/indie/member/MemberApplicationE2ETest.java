@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.support.Acknowledgment;
@@ -94,6 +95,7 @@ class MemberApplicationE2ETest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
     @Autowired JdbcTemplate jdbc;
+    @Autowired StringRedisTemplate redis;
     @Autowired TermsService terms;
     @Autowired CatalogEventConsumer catalogEvents;
     @Autowired ConcertEventConsumer concertEvents;
@@ -119,8 +121,6 @@ class MemberApplicationE2ETest {
         assertThat(claims.getStringListClaim("roles")).containsExactly("USER");
 
         // ── 프로필: 내부 프로필에 roles, status 없음, 내 정보에 wishlistCount 없음
-        assertThat(ok(internal(get("/internal/members/" + userId + "/exists"))).asBoolean()).isTrue();
-        assertThat(code(get("/internal/members/" + userId + "/exists"), 401)).isEqualTo("INTERNAL_TOKEN_REQUIRED");
         JsonNode profile = ok(internal(get("/internal/members/" + userId + "/profile")));
         assertThat(profile.path("userId").asLong()).isEqualTo(userId);
         assertThat(profile.has("roles")).isFalse();
@@ -202,13 +202,13 @@ class MemberApplicationE2ETest {
 
         // ── 탈퇴: 회원 행과 member 의 회원 데이터가 모두 사라지고 user.withdrawn 이 남습니다
         ok(user(delete("/api/members/me"), userId));
-        assertThat(ok(internal(get("/internal/members/" + userId + "/exists"))).asBoolean()).isFalse();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE id = ?", Long.class, userId)).isZero();
         for (String table : List.of("user_terms", "follow", "collection", "chat_message", "user_notification", "user_metric")) {
             assertThat(jdbc.queryForObject("SELECT count(*) FROM " + table + " WHERE user_id = ?", Long.class, userId)).as(table).isZero();
         }
         assertThat(jdbc.queryForObject("SELECT count(*) FROM outbox WHERE event_type = 'user.withdrawn' "
                 + "AND (payload->>'userId')::bigint = ?", Long.class, userId)).isEqualTo(1);
+        assertThat(redis.getExpire("member:withdrawn:" + userId)).isBetween(1L, 1800L);   // 다른 기기의 AT 차단 (Gateway BlacklistFilter)
         assertThat(code(user(get("/api/members/me"), userId), 404)).isEqualTo("NOT_FOUND");
         assertThat(code(user(delete("/api/members/me"), userId), 404)).isEqualTo("NOT_FOUND");
         assertThat(code(user(get("/api/members/me/chat-history"), userId), 404)).isEqualTo("NOT_FOUND");

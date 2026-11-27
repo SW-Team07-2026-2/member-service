@@ -1,5 +1,6 @@
 package com.indie.member.domain.user.service;
 
+import com.indie.member.domain.auth.repository.BlacklistWriter;
 import com.indie.member.domain.auth.repository.RefreshTokenStore;
 import com.indie.member.domain.notification.repository.BadgeCache;
 import com.indie.member.global.common.exception.CommonErrorCode;
@@ -19,16 +20,18 @@ import static org.mockito.Mockito.verifyNoInteractions;
 class WithdrawalServiceTest {
 
     private final UserService userService = mock(UserService.class);
+    private final BlacklistWriter blacklistWriter = mock(BlacklistWriter.class);
     private final RefreshTokenStore refreshTokenStore = mock(RefreshTokenStore.class);
     private final BadgeCache badgeCache = mock(BadgeCache.class);
-    private final WithdrawalService service = new WithdrawalService(userService, refreshTokenStore, badgeCache);
+    private final WithdrawalService service = new WithdrawalService(userService, blacklistWriter, refreshTokenStore, badgeCache);
 
     @Test
     void deletesMemberFirstThenCleansRedis() {
         service.withdraw(42);
 
-        InOrder order = inOrder(userService, refreshTokenStore, badgeCache);
+        InOrder order = inOrder(userService, blacklistWriter, refreshTokenStore, badgeCache);
         order.verify(userService).delete(42);
+        order.verify(blacklistWriter).registerWithdrawn(42);
         order.verify(refreshTokenStore).revokeAll(42);
         order.verify(badgeCache).evict(42);
     }
@@ -39,15 +42,17 @@ class WithdrawalServiceTest {
         doThrow(new GeneralException(CommonErrorCode.NOT_FOUND)).when(userService).delete(42);
 
         assertThatThrownBy(() -> service.withdraw(42)).isInstanceOf(GeneralException.class);
-        verifyNoInteractions(refreshTokenStore, badgeCache);
+        verifyNoInteractions(blacklistWriter, refreshTokenStore, badgeCache);
     }
 
     /** Redis 가 죽어 있어도 탈퇴는 이미 끝났습니다 - 실패로 돌려주지 않습니다 (남은 RT 는 다음 회전 때 거절됩니다) */
     @Test
     void redisFailureDoesNotFailWithdrawal() {
+        doThrow(new IllegalStateException("redis down")).when(blacklistWriter).registerWithdrawn(42);
         doThrow(new IllegalStateException("redis down")).when(refreshTokenStore).revokeAll(42);
 
         assertThatCode(() -> service.withdraw(42)).doesNotThrowAnyException();
+        verify(refreshTokenStore).revokeAll(42);
         verify(badgeCache).evict(42);
     }
 }

@@ -13,7 +13,7 @@ import java.util.List;
 
 import static com.indie.member.domain.terms.entity.QTermsEntity.termsEntity;
 
-/** TermsRepository 구현 — QueryDSL. 현재 버전 = 시행된 것 중 더 늦은 버전이 없는 행 */
+/** TermsRepository 구현 - QueryDSL. 현재 버전 = 시행된 것 중 더 늦은 버전이 없는 행 */
 @Repository
 public class TermsRepositoryAdapter implements TermsRepository {
 

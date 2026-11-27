@@ -5,6 +5,6 @@ import com.indie.member.domain.metric.entity.MetricType;
 
 import java.time.OffsetDateTime;
 
-/** (대상, 행동 종류)별 합계 — count 는 행 수, sum 은 metric_value 합 (단위는 행동 종류마다 다릅니다). SEARCH 는 targetId 가 null — 탭별 검색 횟수 */
+/** (대상, 행동 종류)별 합계 - count 는 행 수, sum 은 metric_value 합 (단위는 행동 종류마다 다릅니다). SEARCH 는 targetId 가 null - 탭별 검색 횟수 */
 public record MetricAggregate(MetricTargetType targetType, Long targetId, MetricType metricType,
                               long count, long sum, OffsetDateTime lastOccurredAt) {}

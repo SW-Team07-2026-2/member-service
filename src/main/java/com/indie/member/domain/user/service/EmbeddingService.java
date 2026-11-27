@@ -14,9 +14,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.regex.Pattern;
 
 /**
- * 회원 벡터 (users.embedding) — AI 서비스가 만들어 저장하고 읽습니다. 어떤 모델로 만들었는지는 AI 가 관리합니다.
- * 차원이 정해지기 전이라 TEXT 로 저장합니다. 형식만 pgvector 텍스트('[숫자,숫자,…]')로 맞춰 두면
- * 나중에 ALTER … TYPE vector(N) USING embedding::vector(N) 한 줄로 바꿀 수 있습니다. 숫자 개수는 검사하지 않습니다.
+ * 회원 벡터 (users.embedding) - AI 서비스가 만들어 저장하고 읽습니다. 어떤 모델로 만들었는지는 AI 가 관리합니다.
+ * 차원이 정해지기 전이라 TEXT 로 저장합니다. 형식만 pgvector 텍스트('[숫자,숫자,...]')로 맞춰 두면
+ * 나중에 ALTER ... TYPE vector(N) USING embedding::vector(N) 한 줄로 바꿀 수 있습니다. 숫자 개수는 검사하지 않습니다.
  */
 @Service
 public class EmbeddingService {
@@ -31,6 +31,11 @@ public class EmbeddingService {
         this.clock = clock;
     }
 
+    /**
+     * 회원 벡터 상세를 조회합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     */
     @Transactional(readOnly = true)
     public EmbeddingResponse get(long userId) {
         return repository.findById(userId)
@@ -38,6 +43,12 @@ public class EmbeddingService {
                 .orElseThrow(() -> new GeneralException(CommonErrorCode.NOT_FOUND));
     }
 
+    /**
+     * 회원 벡터 정보를 저장합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param embedding 저장할 회원 벡터
+     */
     @Transactional
     public EmbeddingSaved save(long userId, String embedding) {
         String text = embedding.strip();
@@ -49,7 +60,7 @@ public class EmbeddingService {
         return new EmbeddingSaved(userId, dimension, now);
     }
 
-    /** '[숫자,숫자,…]' 인지 확인하고 숫자 개수를 돌려줍니다. NaN · Infinity · float 범위를 넘는 값은 받지 않습니다 */
+    /** '[숫자,숫자,...]' 인지 확인하고 숫자 개수를 돌려줍니다. NaN, Infinity, float 범위를 넘는 값은 받지 않습니다 */
     static int dimension(String text) {
         if (text.length() < 2 || text.charAt(0) != '[' || text.charAt(text.length() - 1) != ']') {
             throw new GeneralException(CommonErrorCode.INVALID_REQUEST);

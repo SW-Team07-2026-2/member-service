@@ -13,8 +13,8 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * user_metric — 프론트가 보낸 회원의 행동 1건. 보관 6개월.
- * 행은 수집 API 가 INSERT … ON CONFLICT DO NOTHING 으로 넣습니다 (MetricRepository) — 같은 metric_id 는 한 번만 저장됩니다.
+ * user_metric - 프론트가 보낸 회원의 행동 1건. 보관 6개월.
+ * 행은 수집 API 가 INSERT ... ON CONFLICT DO NOTHING 으로 넣습니다 (MetricRepository) - 같은 metric_id 는 한 번만 저장됩니다.
  */
 @Entity
 @Table(name = "user_metric")

@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
-/** 공개 API — 알림 목록 · 배지 · 단건 읽음 · 전체 읽음. 개인 알림과 팔로잉 소식이 한 목록입니다 */
+/** 프론트 -> Gateway -> Member 알림 목록, 미확인 수와 읽음 처리 API. */
 @RestController
 @Validated
 @RequestMapping("/api/members/notifications")
@@ -32,6 +32,13 @@ public class NotificationController {
         this.pageSize = pageSize;
     }
 
+    /**
+     * 알림 목록을 조회합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param cursor 다음 조회 시작점을 나타내는 커서
+     * @param size 페이지당 조회 개수
+     */
     @GetMapping
     public ApiResponse<CursorPage<NotificationItem>> list(@CurrentUser Long userId,
                                                           @RequestParam(required = false) String cursor,
@@ -39,19 +46,33 @@ public class NotificationController {
         return ApiResponse.onSuccess(notificationService.list(userId, Cursor.decode(cursor), pageSize.resolve(size)));
     }
 
+    /**
+     * 알림 미확인 개수를 조회합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     */
     @GetMapping("/badge")
     public ApiResponse<Map<String, Integer>> badge(@CurrentUser Long userId) {
         return ApiResponse.onSuccess(Map.of("count", notificationService.badge(userId)));
     }
 
-    /** 단건 읽음 — 알림을 눌렀을 때. 멱등 (이미 읽은 알림도 200) */
+    /**
+     * 지정한 알림을 읽음 처리합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param notificationId 알림 ID
+     */
     @PostMapping("/{notificationId}/read")
     public ApiResponse<Map<String, Object>> read(@CurrentUser Long userId, @PathVariable @Positive long notificationId) {
         notificationService.markRead(userId, notificationId);
         return ApiResponse.onSuccess(Map.of("notificationId", notificationId, "isRead", true));
     }
 
-    /** 전체 읽음 */
+    /**
+     * 회원의 모든 알림을 읽음 처리합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     */
     @PostMapping("/read")
     public ApiResponse<Void> readAll(@CurrentUser Long userId) {
         notificationService.markAllRead(userId);

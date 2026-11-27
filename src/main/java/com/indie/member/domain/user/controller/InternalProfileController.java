@@ -8,10 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * GET /internal/members/{userId}/profile — Gateway 의 /api/auth/me 용 (§7-4).
- * 🔴 모든 사용자의 앱 로드마다 발생합니다. PK 단건 조회만 — 조인 · 집계를 추가하지 마세요.
- */
+/** Gateway /api/auth/me -> Member 회원 프로필 단건 조회. */
 @RestController
 public class InternalProfileController {
 
@@ -21,6 +18,11 @@ public class InternalProfileController {
         this.userService = userService;
     }
 
+    /**
+     * Gateway에 필요한 닉네임과 프로필 주소를 반환합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     */
     @GetMapping("/internal/members/{userId}/profile")
     public ApiResponse<ProfileResponse> profile(@PathVariable long userId) {
         UserEntity u = userService.get(userId);

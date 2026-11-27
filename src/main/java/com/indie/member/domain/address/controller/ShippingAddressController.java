@@ -21,10 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 공개 API M19 ~ M23 — 배송지 (굿즈 · 음반 주문의 받는 곳 · 최대 10개 · 기본 1개).
- * 주소 검색은 프론트의 카카오 우편번호 서비스 — 서버는 형식만 검사합니다. 주문(C9)은 배송지 값을 직접 받아 복사해 둡니다
- */
+/** 프론트 -> Gateway -> Member 배송지 API. 회원별 배송지와 기본 배송지를 관리합니다. */
 @RestController
 @Validated
 @RequestMapping("/api/members/me/addresses")
@@ -36,27 +33,57 @@ public class ShippingAddressController {
         this.addressService = addressService;
     }
 
+    /**
+     * 배송지 목록을 조회합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     */
     @GetMapping
     public ApiResponse<Map<String, List<ShippingAddressView>>> list(@CurrentUser Long userId) {
         return ApiResponse.onSuccess(Map.of("items", addressService.list(userId)));
     }
 
+    /**
+     * 배송지 정보를 추가합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param request 받는 사람, 연락처와 배송지 정보
+     */
     @PostMapping
     public ApiResponse<ShippingAddressView> add(@CurrentUser Long userId, @Valid @RequestBody ShippingAddressRequest request) {
         return ApiResponse.onSuccess(addressService.add(userId, request));
     }
 
+    /**
+     * 배송지 정보를 수정합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param addressId 배송지 ID
+     * @param request 받는 사람, 연락처와 배송지 정보
+     */
     @PutMapping("/{addressId}")
     public ApiResponse<ShippingAddressView> update(@CurrentUser Long userId, @PathVariable @Positive long addressId,
                                                    @Valid @RequestBody ShippingAddressRequest request) {
         return ApiResponse.onSuccess(addressService.update(userId, addressId, request));
     }
 
+    /**
+     * 배송지 항목을 기본값으로 지정합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param addressId 배송지 ID
+     */
     @PostMapping("/{addressId}/default")
     public ApiResponse<ShippingAddressView> makeDefault(@CurrentUser Long userId, @PathVariable @Positive long addressId) {
         return ApiResponse.onSuccess(addressService.makeDefault(userId, addressId));
     }
 
+    /**
+     * 배송지 정보를 삭제합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param addressId 배송지 ID
+     */
     @DeleteMapping("/{addressId}")
     public ResponseEntity<Void> delete(@CurrentUser Long userId, @PathVariable @Positive long addressId) {
         addressService.delete(userId, addressId);

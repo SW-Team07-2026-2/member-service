@@ -11,8 +11,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 알림함 조회 · 읽음. 개인 알림과 팔로잉 소식을 한 목록(최신순)으로 보여줍니다.
- * 배지 = 안 읽은 알림 수 · 상한 99 · 30초 캐시 (프론트가 30초 폴링합니다).
+ * 알림함 조회, 읽음. 개인 알림과 팔로잉 소식을 한 목록(최신순)으로 보여줍니다.
+ * 배지 = 안 읽은 알림 수, 상한 99, 30초 캐시 (프론트가 30초 폴링합니다).
  */
 @Service
 public class NotificationService {
@@ -27,23 +27,38 @@ public class NotificationService {
         this.badgeCache = badgeCache;
     }
 
-    /** 커서 id 단독 (최신순) */
+    /**
+     * 커서 id 단독 (최신순)
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param cursor 다음 조회 시작점을 나타내는 커서
+     * @param size 페이지당 조회 개수
+     */
     @Transactional(readOnly = true)
     public CursorPage<NotificationItem> list(long userId, Cursor cursor, int size) {
         return CursorPage.of(notificationRepository.findPage(userId, cursor, size + 1), size, r -> new Cursor(null, r.id()));
     }
 
-    /** 캐시 30초. 캐시 장애 시 DB 로 직접 셉니다 */
+    /**
+     * 캐시 30초. 캐시 장애 시 DB 로 직접 셉니다
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     */
     @Transactional(readOnly = true)
     public int badge(long userId) {
         return badgeCache.get(userId).orElseGet(() -> {
-            int count = Math.min(notificationRepository.countUnread(userId, BADGE_CAP + 1), BADGE_CAP);   // ★ UI 는 99+
+            int count = Math.min(notificationRepository.countUnread(userId, BADGE_CAP + 1), BADGE_CAP);   // UI 는 99+
             badgeCache.put(userId, count);
             return count;
         });
     }
 
-    /** 단건 읽음 — 이미 읽은 알림도 성공(멱등). 없는 알림 · 남의 알림은 404 (존재 여부를 흘리지 않습니다) */
+    /**
+     * 단건 읽음 - 이미 읽은 알림도 성공(멱등). 없는 알림, 남의 알림은 404 (존재 여부를 흘리지 않습니다)
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param notificationId 알림 ID
+     */
     @Transactional
     public void markRead(long userId, long notificationId) {
         if (!notificationRepository.markRead(notificationId, userId)) {
@@ -52,6 +67,11 @@ public class NotificationService {
         badgeCache.evict(userId);
     }
 
+    /**
+     * 알림 전체를 읽음 처리합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     */
     @Transactional
     public void markAllRead(long userId) {
         notificationRepository.markAllRead(userId);

@@ -19,15 +19,8 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * 서버가 남기는 행동 메트릭 (11/24 · docs/v2_member_service_re.md §6.5).
- * <pre>
- * user.metric         Catalog · Concert 가 API 호출에서 남긴 행동 (장바구니 담기 · 빼기, 검색어) — metricId 는 발행 쪽이 정합니다
- * member.activity     FOLLOW · UNFOLLOW
- * order.confirmed     PURCHASE — 주문 줄(옵션)마다 한 건
- * booking.completed   BOOKING
- * </pre>
- * 알림 소비자와 다른 그룹(member-metric)이라 오프셋을 따로 갖습니다 — 처음 뜰 때 지난 이벤트부터 읽어 보관 기간 안의 행동을 채웁니다.
- * user.metric 이 아닌 이벤트의 metricId 는 eventId 로 만들어 같은 이벤트를 다시 받아도 한 번만 저장됩니다.
+ * Catalog, Concert 또는 Member -> Kafka -> Member 행동 메트릭 저장.
+ * 알림과 별도 소비자 그룹을 사용하고 metricId로 중복 저장을 막습니다.
  */
 @Component
 public class ServerMetricConsumer {
@@ -42,6 +35,12 @@ public class ServerMetricConsumer {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * 서비스가 발행한 회원 행동을 저장합니다.
+     *
+     * @param record Kafka에서 수신한 이벤트 레코드
+     * @param ack 처리 완료 후 오프셋을 커밋할 승인 객체
+     */
     @KafkaListener(topics = "user.metric", groupId = GROUP)
     public void onUserMetric(ConsumerRecord<String, String> record, Acknowledgment ack) throws JsonProcessingException {
         EventEnvelope e = EventEnvelope.parse(objectMapper, record.value());
@@ -53,6 +52,12 @@ public class ServerMetricConsumer {
         ack.acknowledge();
     }
 
+    /**
+     * 팔로우 또는 해제 행동을 저장합니다.
+     *
+     * @param record Kafka에서 수신한 이벤트 레코드
+     * @param ack 처리 완료 후 오프셋을 커밋할 승인 객체
+     */
     @KafkaListener(topics = "member.activity", groupId = GROUP)
     public void onMemberActivity(ConsumerRecord<String, String> record, Acknowledgment ack) throws JsonProcessingException {
         EventEnvelope e = EventEnvelope.parse(objectMapper, record.value());
@@ -64,6 +69,12 @@ public class ServerMetricConsumer {
         ack.acknowledge();
     }
 
+    /**
+     * 주문 확정 항목별 구매 행동을 저장합니다.
+     *
+     * @param record Kafka에서 수신한 이벤트 레코드
+     * @param ack 처리 완료 후 오프셋을 커밋할 승인 객체
+     */
     @KafkaListener(topics = "order.confirmed", groupId = GROUP)
     public void onOrderConfirmed(ConsumerRecord<String, String> record, Acknowledgment ack) throws JsonProcessingException {
         EventEnvelope e = EventEnvelope.parse(objectMapper, record.value());
@@ -81,6 +92,12 @@ public class ServerMetricConsumer {
         ack.acknowledge();
     }
 
+    /**
+     * 예매 완료 행동을 저장합니다.
+     *
+     * @param record Kafka에서 수신한 이벤트 레코드
+     * @param ack 처리 완료 후 오프셋을 커밋할 승인 객체
+     */
     @KafkaListener(topics = "booking.completed", groupId = GROUP)
     public void onBookingCompleted(ConsumerRecord<String, String> record, Acknowledgment ack) throws JsonProcessingException {
         EventEnvelope e = EventEnvelope.parse(objectMapper, record.value());

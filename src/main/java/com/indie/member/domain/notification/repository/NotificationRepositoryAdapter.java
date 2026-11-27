@@ -13,13 +13,7 @@ import java.util.UUID;
 
 import static com.indie.member.domain.notification.entity.QUserNotificationEntity.userNotificationEntity;
 
-/**
- * NotificationRepository 구현.
- * 복사는 HQL insert … select … on conflict do nothing — 팔로워 수만큼 INSERT 를 보내지 않고 한 문장으로 끝냅니다
- * (IDENTITY 키라 JPA saveAll 은 묶음 INSERT 가 되지 않습니다).
- * 충돌 대상은 제약 이름(uq_user_notification_event = UNIQUE(user_id, event_id))으로 적습니다 —
- * insert … select 에서는 Hibernate 6.5 가 on conflict (userId, eventId) 의 속성 경로를 풀지 못합니다.
- */
+/** 알림 저장소 구현. HQL 일괄 INSERT와 유일 제약으로 팔로워 알림의 중복 저장을 막습니다. */
 @Repository
 public class NotificationRepositoryAdapter implements NotificationRepository {
 

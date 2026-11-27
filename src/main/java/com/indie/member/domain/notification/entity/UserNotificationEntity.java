@@ -13,9 +13,9 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * user_notification — 회원의 알림함. 개인 알림과 팔로잉 소식을 함께 담고 행마다 읽음 처리합니다.
- * 행은 Kafka 컨슈머가 INSERT … SELECT 로 넣습니다 (NotificationRepository) — 엔티티를 직접 저장하지 않습니다.
- * ref_id · artist_id 는 catalog · concert 의 ID 라 FK 가 없습니다.
+ * user_notification - 회원의 알림함. 개인 알림과 팔로잉 소식을 함께 담고 행마다 읽음 처리합니다.
+ * 행은 Kafka 컨슈머가 INSERT ... SELECT 로 넣습니다 (NotificationRepository) - 엔티티를 직접 저장하지 않습니다.
+ * ref_id, artist_id 는 catalog, concert 의 ID 라 FK 가 없습니다.
  */
 @Entity
 @Table(name = "user_notification")
@@ -27,7 +27,7 @@ public class UserNotificationEntity {
 
     private Long userId;
 
-    private UUID eventId;                              // UNIQUE(user_id, event_id) — 같은 이벤트는 한 번만
+    private UUID eventId;                              // UNIQUE(user_id, event_id) - 같은 이벤트는 한 번만
 
     @Enumerated(EnumType.STRING)
     private NotificationType type;

@@ -15,16 +15,7 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Concert 이벤트 → 알림 (docs/v2_member_service_re.md §6.3 · §8).
- * <pre>
- * concert.created         팔로워에게  CONCERT_ANNOUNCED (페스티벌은 라인업 전체의 팔로워)
- * concert.lineup_updated  팔로워에게  CONCERT_ANNOUNCED (새로 추가된 아티스트의 팔로워만)
- * concert.notice_posted   팔로워 + 확정 예매자에게  CONCERT_ANNOUNCED (공연 변경 공지 · 11/18 — 새 알림 종류 없이 공연 소식으로)
- * booking.completed       본인에게    BOOKING_DONE
- * booking.cancelled       본인에게    BOOKING_CANCELLED
- * </pre>
- */
+/** Concert -> Kafka 공연 소식, 예매 이벤트 -> Member 팔로워 또는 예매자 알림. */
 @Component
 public class ConcertEventConsumer {
 
@@ -37,8 +28,11 @@ public class ConcertEventConsumer {
     }
 
     /**
-     * 공연 등록 — artistIds(라인업 순서)의 팔로워에게. 아직 artistId 하나만 오는 payload 도 받습니다.
+     * 공연 등록 - artistIds(라인업 순서)의 팔로워에게. 아직 artistId 하나만 오는 payload 도 받습니다.
      * 여러 팀을 팔로우한 회원도 알림은 1건입니다 (NotificationWriter.fanOut).
+     *
+     * @param record Kafka에서 수신한 이벤트 레코드
+     * @param ack 처리 완료 후 오프셋을 커밋할 승인 객체
      */
     @KafkaListener(topics = "concert.created")
     public void onConcertCreated(ConsumerRecord<String, String> record, Acknowledgment ack) throws JsonProcessingException {
@@ -56,8 +50,11 @@ public class ConcertEventConsumer {
     }
 
     /**
-     * 라인업 추가 — addedArtistIds(새로 추가된 팀)의 팔로워에게만. 이미 공개된 팀의 팔로워는 공연 등록 때 받았습니다.
+     * 라인업 추가 - addedArtistIds(새로 추가된 팀)의 팔로워에게만. 이미 공개된 팀의 팔로워는 공연 등록 때 받았습니다.
      * 여러 팀을 팔로우한 회원도 알림은 1건입니다 (NotificationWriter.fanOut).
+     *
+     * @param record Kafka에서 수신한 이벤트 레코드
+     * @param ack 처리 완료 후 오프셋을 커밋할 승인 객체
      */
     @KafkaListener(topics = "concert.lineup_updated")
     public void onLineupUpdated(ConsumerRecord<String, String> record, Acknowledgment ack) throws JsonProcessingException {
@@ -75,8 +72,11 @@ public class ConcertEventConsumer {
     }
 
     /**
-     * 공연 변경 공지 — 라인업 팔로워(fanOut) + 확정 예매자(personal). 같은 이벤트라 둘 다인 회원도 알림은 1건입니다 (uq_user_notification_event).
+     * 공연 변경 공지 - 라인업 팔로워(fanOut) + 확정 예매자(personal). 같은 이벤트라 둘 다인 회원도 알림은 1건입니다 (uq_user_notification_event).
      * 예매자는 팔로우하지 않아도 받습니다.
+     *
+     * @param record Kafka에서 수신한 이벤트 레코드
+     * @param ack 처리 완료 후 오프셋을 커밋할 승인 객체
      */
     @KafkaListener(topics = "concert.notice_posted")
     public void onNoticePosted(ConsumerRecord<String, String> record, Acknowledgment ack) throws JsonProcessingException {
@@ -100,7 +100,12 @@ public class ConcertEventConsumer {
         return ids;
     }
 
-    /** 🔴 본인에게만 — 아티스트 단위로 넣으면 팔로워 전원에게 남의 예매가 보입니다 */
+    /**
+     * 본인에게만 - 아티스트 단위로 넣으면 팔로워 전원에게 남의 예매가 보입니다
+     *
+     * @param record Kafka에서 수신한 이벤트 레코드
+     * @param ack 처리 완료 후 오프셋을 커밋할 승인 객체
+     */
     @KafkaListener(topics = "booking.completed")
     public void onBookingCompleted(ConsumerRecord<String, String> record, Acknowledgment ack) throws JsonProcessingException {
         EventEnvelope e = EventEnvelope.parse(objectMapper, record.value());
@@ -110,6 +115,12 @@ public class ConcertEventConsumer {
         ack.acknowledge();
     }
 
+    /**
+     * 예매 취소 이벤트를 받아 예매자에게 알림을 저장합니다.
+     *
+     * @param record Kafka에서 수신한 이벤트 레코드
+     * @param ack 처리 완료 후 오프셋을 커밋할 승인 객체
+     */
     @KafkaListener(topics = "booking.cancelled")
     public void onBookingCancelled(ConsumerRecord<String, String> record, Acknowledgment ack) throws JsonProcessingException {
         EventEnvelope e = EventEnvelope.parse(objectMapper, record.value());

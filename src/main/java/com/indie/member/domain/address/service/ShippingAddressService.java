@@ -12,7 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-/** 배송지 — 최대 10개 · 기본 1개. 첫 배송지는 자동으로 기본, 기본을 지우면 가장 최근 배송지가 기본이 됩니다 */
+/** 배송지 - 최대 10개, 기본 1개. 첫 배송지는 자동으로 기본, 기본을 지우면 가장 최근 배송지가 기본이 됩니다 */
 @Service
 public class ShippingAddressService {
 
@@ -24,11 +24,22 @@ public class ShippingAddressService {
         this.repository = repository;
     }
 
+    /**
+     * 배송지 목록을 조회합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     */
     @Transactional(readOnly = true)
     public List<ShippingAddressView> list(long userId) {
         return repository.findAllOfUser(userId).stream().map(ShippingAddressView::of).toList();
     }
 
+    /**
+     * 배송지 정보를 추가합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param r 받는 사람, 연락처와 배송지 정보
+     */
     @Transactional
     public ShippingAddressView add(long userId, ShippingAddressRequest r) {
         repository.lockUser(userId);
@@ -42,6 +53,13 @@ public class ShippingAddressService {
                 r.phone(), r.zonecode(), r.address(), r.addressDetail(), makeDefault)));
     }
 
+    /**
+     * 배송지 정보를 수정합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param id 배송지 ID
+     * @param r 받는 사람, 연락처와 배송지 정보
+     */
     @Transactional
     public ShippingAddressView update(long userId, long id, ShippingAddressRequest r) {
         repository.lockUser(userId);
@@ -51,6 +69,12 @@ public class ShippingAddressService {
         return ShippingAddressView.of(a);
     }
 
+    /**
+     * 배송지 항목을 기본값으로 지정합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param id 배송지 ID
+     */
     @Transactional
     public ShippingAddressView makeDefault(long userId, long id) {
         repository.lockUser(userId);
@@ -59,12 +83,18 @@ public class ShippingAddressService {
         return ShippingAddressView.of(a);
     }
 
+    /**
+     * 배송지 정보를 삭제합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param id 배송지 ID
+     */
     @Transactional
     public void delete(long userId, long id) {
         repository.lockUser(userId);
         ShippingAddressEntity a = owned(userId, id);
         repository.delete(a);
-        repository.flush();   // ★ 지우기를 먼저 반영 — 새 기본(UPDATE)이 먼저 나가면 기본 1개 UNIQUE 에 걸립니다
+        repository.flush();   // 지우기를 먼저 반영 - 새 기본(UPDATE)이 먼저 나가면 기본 1개 UNIQUE 에 걸립니다
         if (a.isDefault()) repository.findFirstByUserIdOrderByCreatedAtDescIdDesc(userId).ifPresent(ShippingAddressEntity::makeDefault);
     }
 

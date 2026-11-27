@@ -7,7 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
-/** shipping_address — 회원 배송지 (최대 10개 · 기본 1개). 기본 전환은 서비스가 기존 기본을 먼저 해제합니다 */
+/** shipping_address - 회원 배송지 (최대 10개, 기본 1개). 기본 전환은 서비스가 기존 기본을 먼저 해제합니다 */
 @Entity
 @Table(name = "shipping_address")
 public class ShippingAddressEntity extends BaseEntity {

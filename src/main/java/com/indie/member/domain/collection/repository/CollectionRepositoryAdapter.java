@@ -13,7 +13,7 @@ import java.util.Optional;
 
 import static com.indie.member.domain.collection.entity.QCollectionEntity.collectionEntity;
 
-/** CollectionRepository 구현 — 단건은 Spring Data, 멱등 추가는 HQL(insert … on conflict), 목록 · 삭제는 QueryDSL */
+/** CollectionRepository 구현 - 단건은 Spring Data, 멱등 추가는 HQL(insert ... on conflict), 목록, 삭제는 QueryDSL */
 @Repository
 public class CollectionRepositoryAdapter implements CollectionRepository {
 
@@ -29,7 +29,7 @@ public class CollectionRepositoryAdapter implements CollectionRepository {
 
     @Override
     public void addIfAbsent(long userId, long physicalAlbumId, long optionId, CollectionEntity.Source source, LocalDate acquiredAt) {
-        // 충돌 대상은 제약 이름으로 (uq_collection_option = UNIQUE(user_id, option_id)) — insert … select 에서는 속성 경로를 쓸 수 없습니다
+        // 충돌 대상은 제약 이름으로 (uq_collection_option = UNIQUE(user_id, option_id)) - insert ... select 에서는 속성 경로를 쓸 수 없습니다
         em.createQuery("""
                         insert into CollectionEntity (userId, physicalAlbumId, optionId, source, acquiredAt)
                         select u.id, :physicalAlbumId, :optionId, :source, :acquiredAt

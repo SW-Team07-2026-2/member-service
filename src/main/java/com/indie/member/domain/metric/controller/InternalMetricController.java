@@ -15,11 +15,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 
-/**
- * GET /internal/members/{userId}/metrics — AI 서비스용. 회원 한 명의 행동을 걸러서(기간 · 대상 · 행동 종류) 내려줍니다.
- * /internal/** 이라 InternalTokenFilter 가 먼저 동작합니다 (외부 사용자 경로에 노출하지 않습니다).
- * from · to 는 오프셋이 붙은 ISO-8601 — 쿼리 문자열의 + 는 %2B 로 보내야 합니다.
- */
+/** AI -> Gateway 서명 경로 -> Member 회원 행동 조회. 내부 토큰으로 인증하고 기간과 행동 종류를 필터링합니다. */
 @RestController
 public class InternalMetricController {
 
@@ -32,7 +28,18 @@ public class InternalMetricController {
         this.metricService = metricService;
     }
 
-    /** aggregate=true(기본) 면 (대상, 행동 종류)별 합계 { items }, false 면 원본 행의 커서 페이지 { items, nextCursor, hasNext } */
+    /**
+     * 회원 행동의 원본 또는 집계 결과를 조회합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param from 조회 시작 시각
+     * @param to 조회 종료 시각
+     * @param targetType 조회할 행동 대상 종류
+     * @param metricType 조회할 행동 종류
+     * @param aggregate 집계 결과 반환 여부
+     * @param limit 최대 조회 개수
+     * @param cursor 다음 조회 시작점을 나타내는 커서
+     */
     @GetMapping("/internal/members/{userId}/metrics")
     public ApiResponse<Object> metrics(@PathVariable long userId,
                                        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime from,

@@ -168,12 +168,6 @@ public class UserService {
                 Map.of("userId", userId, "withdrawnAt", OffsetDateTime.now(clock).toString()));
     }
 
-    /** Gateway가 탈퇴한 회원의 잔존 토큰을 차단할 때 사용하는 현재 회원 존재 여부입니다. */
-    @Transactional(readOnly = true)
-    public boolean exists(long userId) {
-        return userRepository.existsById(userId);
-    }
-
     /** 기존 사용자 - profileImageUrl, email 만 갱신. email 은 다른 계정이 쓰고 있으면 건드리지 않습니다 */
     private void refreshProviderFields(UserEntity user, String email, String profileImageUrl) {
         if (profileImageUrl != null) {

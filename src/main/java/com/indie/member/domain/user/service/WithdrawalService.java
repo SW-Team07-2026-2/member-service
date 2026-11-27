@@ -1,5 +1,6 @@
 package com.indie.member.domain.user.service;
 
+import com.indie.member.domain.auth.repository.BlacklistWriter;
 import com.indie.member.domain.auth.repository.RefreshTokenStore;
 import com.indie.member.domain.notification.repository.BadgeCache;
 import org.slf4j.Logger;
@@ -16,11 +17,13 @@ public class WithdrawalService {
     private static final Logger log = LoggerFactory.getLogger(WithdrawalService.class);
 
     private final UserService userService;
+    private final BlacklistWriter blacklistWriter;
     private final RefreshTokenStore refreshTokenStore;
     private final BadgeCache badgeCache;
 
-    public WithdrawalService(UserService userService, RefreshTokenStore refreshTokenStore, BadgeCache badgeCache) {
+    public WithdrawalService(UserService userService, BlacklistWriter blacklistWriter, RefreshTokenStore refreshTokenStore, BadgeCache badgeCache) {
         this.userService = userService;
+        this.blacklistWriter = blacklistWriter;
         this.refreshTokenStore = refreshTokenStore;
         this.badgeCache = badgeCache;
     }
@@ -32,6 +35,12 @@ public class WithdrawalService {
      */
     public void withdraw(long userId) {
         userService.delete(userId);
+        try {
+            blacklistWriter.registerWithdrawn(userId);
+        } catch (RuntimeException e) {
+            // 다른 기기의 AT 는 남은 수명(최대 30분) 동안 통과합니다 - 로그아웃 블랙리스트 실패와 같은 처리
+            log.warn("withdraw_access_token_block_failed userId={} error={}", userId, e.toString());
+        }
         try {
             refreshTokenStore.revokeAll(userId);
         } catch (RuntimeException e) {

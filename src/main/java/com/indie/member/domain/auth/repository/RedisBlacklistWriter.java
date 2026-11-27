@@ -1,5 +1,6 @@
 package com.indie.member.domain.auth.repository;
 
+import com.indie.member.global.config.MemberProperties;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -15,10 +16,12 @@ public class RedisBlacklistWriter implements BlacklistWriter {
 
     private final StringRedisTemplate redis;
     private final Clock clock;
+    private final Duration accessTokenTtl;
 
-    public RedisBlacklistWriter(StringRedisTemplate redis, Clock clock) {
+    public RedisBlacklistWriter(StringRedisTemplate redis, Clock clock, MemberProperties props) {
         this.redis = redis;
         this.clock = clock;
+        this.accessTokenTtl = Duration.ofSeconds(props.token().atTtlSeconds());
     }
 
     @Override
@@ -28,5 +31,10 @@ public class RedisBlacklistWriter implements BlacklistWriter {
             return;
         }
         redis.opsForValue().set("member:blacklist:" + jti, "1", Duration.ofSeconds(remaining));
+    }
+
+    @Override
+    public void registerWithdrawn(long userId) {
+        redis.opsForValue().set("member:withdrawn:" + userId, "1", accessTokenTtl);
     }
 }

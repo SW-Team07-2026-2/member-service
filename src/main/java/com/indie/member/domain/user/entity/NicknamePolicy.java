@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ThreadLocalRandom;
 
-/** 닉네임 규칙 - 2~10자, 공백, 제어문자 거부, 금칙어 1종. 중복은 허용합니다 (식별자는 id) */
+/** 닉네임 규칙 - 2~10자, 공백, 제어문자 거부, 금칙어 거부. 중복은 허용합니다 (식별자는 id) */
 public final class NicknamePolicy {
 
     static final int MIN = 2;

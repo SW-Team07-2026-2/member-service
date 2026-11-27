@@ -15,7 +15,7 @@ public final class CursorPredicates {
      * 시각과 ID를 기준으로 다음 페이지 조회 조건을 만듭니다.
      *
      * @param at 정렬 기준 시각 표현식
-     * @param id CursorPredicates ID
+     * @param id 정렬 기준 ID 표현식
      * @param cursor 다음 조회 시작점을 나타내는 커서
      */
     public static BooleanExpression before(ComparableExpression<OffsetDateTime> at, NumberExpression<Long> id, Cursor cursor) {

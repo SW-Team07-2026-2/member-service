@@ -52,7 +52,7 @@ public class TermsService {
     /**
      * M25 - 문서 하나의 현재 버전 (푸터 약관 화면, 게시 문서 포함)
      *
-     * @param code 약관 또는 인증 코드
+     * @param code 조회할 약관 종류
      */
     @Transactional(readOnly = true)
     public TermsEntity document(TermsCode code) {

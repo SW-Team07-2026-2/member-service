@@ -32,7 +32,7 @@ public class TermsController {
     /**
      * M25 - 푸터 약관 화면 (TOS, PRIVACY_POLICY 등). 없는 code 는 400 INVALID_REQUEST
      *
-     * @param code 약관 또는 인증 코드
+     * @param code 조회할 약관 종류
      */
     @GetMapping("/{code}")
     public ApiResponse<TermsView> document(@PathVariable TermsCode code) {

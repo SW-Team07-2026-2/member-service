@@ -32,7 +32,7 @@ public class NotificationWriter {
      * 아티스트 팔로워에게 이벤트 알림을 일괄 저장합니다.
      *
      * @param eventId 중복 처리에 사용할 이벤트 ID
-     * @param type 처리할 종류
+     * @param type 발매 알림 종류
      * @param refId 알림이 가리키는 대상 ID
      * @param artistIds 대상 아티스트 ID 목록
      * @param message 알림 문장
@@ -52,7 +52,7 @@ public class NotificationWriter {
      *
      * @param userId 조회하거나 처리할 회원 ID
      * @param eventId 중복 처리에 사용할 이벤트 ID
-     * @param type 처리할 종류
+     * @param type 발매 알림 종류
      * @param refId 알림이 가리키는 대상 ID
      * @param message 알림 문장
      */

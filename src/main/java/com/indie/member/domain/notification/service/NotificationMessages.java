@@ -26,7 +26,7 @@ public final class NotificationMessages {
     /**
      * 앨범 발매 알림 문장을 만듭니다.
      *
-     * @param type 처리할 종류
+     * @param type 발매 알림 종류
      * @param artistName 아티스트 이름
      * @param title 앨범 또는 공연 제목
      * @param releasedAt 발매일
@@ -59,7 +59,7 @@ public final class NotificationMessages {
      * 굿즈 발매 알림 문장을 만듭니다.
      *
      * @param artistName 아티스트 이름
-     * @param name 아티스트 또는 상품 이름
+     * @param name 굿즈 이름
      * @param price 가격(원)
      */
     public static String goodsReleased(String artistName, String name, Long price) {

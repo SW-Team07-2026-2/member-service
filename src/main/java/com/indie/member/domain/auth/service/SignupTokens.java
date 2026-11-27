@@ -78,7 +78,7 @@ public class SignupTokens {
     /**
      * 가입 토큰의 서명과 클레임을 검증합니다.
      *
-     * @param token 검증하거나 저장할 토큰
+     * @param token 검증할 일회용 가입 토큰
      */
     public Claims verify(String token) {
         try {

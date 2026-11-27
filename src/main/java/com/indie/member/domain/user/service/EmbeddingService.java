@@ -14,9 +14,8 @@ import java.time.temporal.ChronoUnit;
 import java.util.regex.Pattern;
 
 /**
- * 회원 벡터 (users.embedding) - AI 서비스가 만들어 저장하고 읽습니다. 어떤 모델로 만들었는지는 AI 가 관리합니다.
- * 차원이 정해지기 전이라 TEXT 로 저장합니다. 형식만 pgvector 텍스트('[숫자,숫자,...]')로 맞춰 두면
- * 나중에 ALTER ... TYPE vector(N) USING embedding::vector(N) 한 줄로 바꿀 수 있습니다. 숫자 개수는 검사하지 않습니다.
+ * 추천 서비스가 생성한 회원 벡터를 TEXT로 저장하고 조회합니다. 모델과 차원은 추천 서비스가 관리합니다.
+ * '[숫자,숫자,...]' 형식과 유한한 float 값만 검증하며 숫자 개수는 제한하지 않습니다.
  */
 @Service
 public class EmbeddingService {

@@ -23,8 +23,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 /**
- * Kafka 이벤트 → 알림. payload 를 알림 종류 · 이동 대상 · 문장으로 바꾸는 부분만 봅니다 (저장은 NotificationPersistenceTest).
- * 지금 Catalog · Concert 가 보내는 payload 와 v2 문서(§8)의 payload 를 둘 다 받아야 합니다.
+ * Kafka 이벤트 -> 알림. payload 를 알림 종류, 이동 대상, 문장으로 바꾸는 부분만 봅니다 (저장은 NotificationPersistenceTest).
+ * 지금 Catalog, Concert 가 보내는 payload 와 v2 문서(§8)의 payload 를 둘 다 받아야 합니다.
  */
 class EventConsumerTest {
 
@@ -37,7 +37,7 @@ class EventConsumerTest {
     private final CatalogEventConsumer catalog = new CatalogEventConsumer(writer, collectionService, mapper);
     private final ConcertEventConsumer concert = new ConcertEventConsumer(writer, mapper);
 
-    /** 지금 Catalog 가 보내는 모양 — 앨범 구분이 type 에 옵니다 */
+    /** 지금 Catalog 가 보내는 모양 - 앨범 구분이 type 에 옵니다 */
     @Test
     void albumReleasedMapsAlbumTypeToNotificationType() throws Exception {
         catalog.onAlbumReleased(event("album.released", """
@@ -72,7 +72,7 @@ class EventConsumerTest {
         verify(writer).fanOut(EVENT_ID, NotificationType.GOODS_RELEASED, 40, List.of(7L), "새소년 티셔츠 블랙 판매 시작 · 32,000원");
     }
 
-    /** 주문 확정 — 본인 알림 + 피지컬 앨범만 콜렉션에 (굿즈는 physicalAlbumId 가 없어 빠집니다) */
+    /** 주문 확정 - 본인 알림 + 피지컬 앨범만 콜렉션에 (굿즈는 physicalAlbumId 가 없어 빠집니다) */
     @Test
     void orderConfirmedNotifiesOwnerAndCollectsPhysicalAlbumsOnly() throws Exception {
         catalog.onOrderConfirmed(event("order.confirmed", """
@@ -104,7 +104,7 @@ class EventConsumerTest {
         verify(writer).personal(42, EVENT_ID, NotificationType.PURCHASE_REFUNDED, 900, "「비적응」 LP 외 1건 환불 완료 · 70,000원");
     }
 
-    /** 페스티벌은 라인업 순서 그대로(중복 제거) · 지금 Concert 가 보내는 artistId 하나짜리도 받습니다 */
+    /** 페스티벌은 라인업 순서 그대로(중복 제거), 지금 Concert 가 보내는 artistId 하나짜리도 받습니다 */
     @Test
     void concertCreatedUsesLineupOrFallsBackToSingleArtist() throws Exception {
         concert.onConcertCreated(event("concert.created", """
@@ -122,7 +122,7 @@ class EventConsumerTest {
                 "새소년 단독공연 공연 등록 · 12/24(목) 19:00 · 무신사 개러지");
     }
 
-    /** 라인업 추가 — 새로 추가된 팀(중복 제거)의 팔로워에게만 · 기존 라인업(artistIds)은 보지 않습니다 */
+    /** 라인업 추가 - 새로 추가된 팀(중복 제거)의 팔로워에게만, 기존 라인업(artistIds)은 보지 않습니다 */
     @Test
     void lineupUpdatedNotifiesFollowersOfAddedArtistsOnly() throws Exception {
         concert.onLineupUpdated(event("concert.lineup_updated", """
@@ -134,7 +134,7 @@ class EventConsumerTest {
         verify(ack).acknowledge();
     }
 
-    /** 공연 변경 공지 — 라인업 팔로워 + 확정 예매자 (같은 eventId 라 겹치는 회원은 1건) */
+    /** 공연 변경 공지 - 라인업 팔로워 + 확정 예매자 (같은 eventId 라 겹치는 회원은 1건) */
     @Test
     void noticePostedNotifiesFollowersAndBookers() throws Exception {
         concert.onNoticePosted(event("concert.notice_posted", """
@@ -150,7 +150,7 @@ class EventConsumerTest {
         verify(ack).acknowledge();
     }
 
-    /** 지금 Concert 가 보내는 booking.completed (공연명이 title · 장소 없음) 도 받습니다 */
+    /** 지금 Concert 가 보내는 booking.completed (공연명이 title, 장소 없음) 도 받습니다 */
     @Test
     void bookingEventsNotifyOwner() throws Exception {
         concert.onBookingCompleted(event("booking.completed", """
@@ -166,7 +166,7 @@ class EventConsumerTest {
                 "새소년 단독공연 예매 취소 · 12/24(목) 19:00 · 77,000원 환불");
     }
 
-    /** 필수 값이 없거나 모르는 version 이면 IllegalArgumentException — 재시도 없이 DLT 로 갑니다. ack 하지 않습니다 */
+    /** 필수 값이 없거나 모르는 version 이면 IllegalArgumentException - 재시도 없이 DLT 로 갑니다. ack 하지 않습니다 */
     @Test
     void missingRequiredFieldOrUnknownVersionIsRejectedWithoutAck() {
         assertThatThrownBy(() -> catalog.onAlbumReleased(event("album.released", """

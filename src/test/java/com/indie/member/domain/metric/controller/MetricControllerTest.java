@@ -43,7 +43,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** 메트릭 수집(공개) · AI 조회(내부) — 입력 형식과 응답 모양. 저장 · 집계는 MetricPersistenceTest */
+/** 메트릭 수집(공개), AI 조회(내부) - 입력 형식과 응답 모양. 저장, 집계는 MetricPersistenceTest */
 class MetricControllerTest {
 
     private static final String PATH = "/api/members/me/metrics";
@@ -112,7 +112,7 @@ class MetricControllerTest {
                 batch(EVENT.replace("2026-11-12T15:30:00+09:00", "2026-11-12T15:30:00")));
     }
 
-    /** AI 조회 — 기본은 합계. 종류는 쉼표로 여러 개, 기간은 오프셋 포함 ISO-8601. limit 은 1000 에서 끊습니다 */
+    /** AI 조회 - 기본은 합계. 종류는 쉼표로 여러 개, 기간은 오프셋 포함 ISO-8601. limit 은 1000 에서 끊습니다 */
     @Test
     void internalQueryParsesFiltersAndReturnsAggregates() throws Exception {
         OffsetDateTime last = OffsetDateTime.parse("2026-11-12T15:30:00+09:00");

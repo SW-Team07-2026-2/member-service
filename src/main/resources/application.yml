@@ -5,17 +5,17 @@ spring:
   datasource:
     url: jdbc:postgresql://${DB_HOST}:5432/indie_db?currentSchema=member&ApplicationName=member
     username: member_svc
-    password: ${db.password}                  # ← configtree 파일
+    password: ${db.password}                  # <- configtree 파일
     hikari:
-      maximum-pool-size: 5                    # ★ DB 쪽 CONNECTION LIMIT 15 / replica 2
+      maximum-pool-size: 5                    # DB 쪽 CONNECTION LIMIT 15 / replica 2
       minimum-idle: 2
       connection-timeout: 3000
-      max-lifetime: 1500000                   # 25분 — RDS 쪽보다 짧게
+      max-lifetime: 1500000                   # 25분 - RDS 쪽보다 짧게
       leak-detection-threshold: 20000
 
   jpa:
-    open-in-view: false                       # ★ 커넥션 점유 방지
-    hibernate.ddl-auto: validate              # 🔴 none/update 아님 — Flyway 와 불일치를 잡는다
+    open-in-view: false                       # 커넥션 점유 방지
+    hibernate.ddl-auto: validate              # none/update 아님 - Flyway 와 불일치를 잡는다
     properties:
       hibernate:
         default_schema: member
@@ -27,22 +27,22 @@ spring:
     enabled: true
     schemas: member
     default-schema: member
-    baseline-on-migrate: false                # 🔴 true 는 기존 테이블을 조용히 건너뜁니다
+    baseline-on-migrate: false                # true 는 기존 테이블을 조용히 건너뜁니다
     validate-on-migrate: true
 
   kafka:
     bootstrap-servers: ${KAFKA_SERVERS}
     consumer:
-      group-id: member-service                # ★ replica 2 가 같은 그룹 → 파티션 분배
+      group-id: member-service                # replica 2 가 같은 그룹 -> 파티션 분배
       auto-offset-reset: earliest
-      enable-auto-commit: false               # ★ 수동 커밋
+      enable-auto-commit: false               # 수동 커밋
       max-poll-records: 50
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
     listener:
       ack-mode: MANUAL
       concurrency: 1
-      missing-topics-fatal: false             # 🔴 Kafka 장애가 기동을 막지 않게
+      missing-topics-fatal: false             # Kafka 장애가 기동을 막지 않게
     producer:
       acks: all
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
@@ -68,34 +68,34 @@ management:
   endpoint.health:
     probes.enabled: true
     group:
-      readiness.include: db                   # ★ DB 는 포함 (§15-1)
+      readiness.include: db                   # DB 는 포함 (§15-1)
       liveness.include: ping
-  metrics.distribution.slo.http.server.requests: 10ms,25ms,50ms,100ms,200ms,300ms,500ms,750ms,1s,2s,3s,5s,10s   # 응답 시간 p95 · p99 (Grafana) — 구간을 고정해 지표 수를 묶습니다
+  metrics.distribution.slo.http.server.requests: 10ms,25ms,50ms,100ms,200ms,300ms,500ms,750ms,1s,2s,3s,5s,10s   # 응답 시간 p95, p99 (Grafana) - 구간을 고정해 지표 수를 묶습니다
 
 springdoc:
-  api-docs.enabled: false                     # 운영 노출 안 함 — local 에서만 켭니다
+  api-docs.enabled: false                     # 운영 노출 안 함 - local 에서만 켭니다
   swagger-ui.enabled: false
 
 app:
-  follows-port: 8181                          # 11/19 팔로우 전용 포트 — /internal/members/{userId}/follows 만 (Catalog · Concert 는 NetworkPolicy 로 이 포트에만 허용)
-  follows-port-max-threads: 20                # ✏️ 11/26 8181 스레드 상한 — 팔로우 목록 조회(짧은 DB 읽기)만 받고 DB 풀(10)을 8081 과 나눠 쓰므로 풀의 2배까지만
+  follows-port: 8181                          # 팔로우 전용 포트 - /internal/members/{userId}/follows 만 (Catalog, Concert 는 NetworkPolicy 로 이 포트에만 허용)
+  follows-port-max-threads: 20                # 8181 스레드 상한 - 팔로우 목록 조회(짧은 DB 읽기)만 받고 DB 풀(10)을 8081 과 나눠 쓰므로 풀의 2배까지만
   token:
     at-ttl-seconds: 1800
     rt-ttl-seconds: 1209600
     issuer: indie-member
     active-kid: ${JWT_ACTIVE_KID}             # 키 롤링 시 바꾸는 값
-    previous-kid: ${JWT_PREVIOUS_KID:}        # 롤링 중에만 — JWKS 에 구 공개키를 함께 응답
+    previous-kid: ${JWT_PREVIOUS_KID:}        # 롤링 중에만 - JWKS 에 구 공개키를 함께 응답
   internal:
     expected-audience: member
     allowed-issuers: [gateway]
-    admin-issuers: [studio]                   # /internal/admin/** 만 — 관리자(Studio) 토큰으로 토큰 발급 등 다른 내부 API 를 부를 수 없습니다
-    follow-issuers: [catalog, concert]        # 11/19 /internal/members/{userId}/follows 만 — 팔로우 탭 (이 토큰으로 다른 내부 API 는 못 부름)
+    admin-issuers: [studio]                   # /internal/admin/** 만 - 관리자(Studio) 토큰으로 토큰 발급 등 다른 내부 API 를 부를 수 없습니다
+    follow-issuers: [catalog, concert]        # /internal/members/{userId}/follows 만 - 팔로우 탭 (이 토큰으로 다른 내부 API 는 못 부름)
     clock-skew-seconds: 30
-  paging:                                     # 목록 API 의 size — 기본 · 최대
+  paging:                                     # 목록 API 의 size - 기본, 최대
     page-size: 20
     max-page-size: 50
   outbox:
     relay-interval-ms: 1000
     batch-size: 100
   signup:
-    ttl-seconds: 1800                         # 사인업 토큰 · 가입 대기 값 수명 — 밴드 고르기에 쓰는 시간 (Gateway app.cookie.signup-max-age 와 같게)
+    ttl-seconds: 1800                         # 사인업 토큰, 가입 대기 값 수명 - 밴드 고르기에 쓰는 시간 (Gateway app.cookie.signup-max-age 와 같게)

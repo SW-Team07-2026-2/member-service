@@ -69,7 +69,7 @@ class InternalTokenFilterTest {
         assertThat(call(token(SECRET, "crawler", "member", 300)).getStatus()).isEqualTo(401);
     }
 
-    /** ★ 발급자는 경로로 나뉩니다 — 관리자(studio) 토큰은 /internal/admin/** 만, Gateway 토큰은 그 밖만 */
+    /** 발급자는 경로로 나뉩니다 - 관리자(studio) 토큰은 /internal/admin/** 만, Gateway 토큰은 그 밖만 */
     @Test
     void adminPathsAcceptOnlyAdminIssuers() throws Exception {
         assertThat(call(token(SECRET, "studio", "member", 300), "/internal/admin/members/7").getStatus()).isEqualTo(200);
@@ -77,7 +77,7 @@ class InternalTokenFilterTest {
         assertThat(call(token(SECRET, "studio", "member", 300), "/internal/auth/issue").getStatus()).isEqualTo(401);
     }
 
-    /** 11/19 팔로우 목록 경로만 catalog · concert 토큰 — 그 토큰으로 토큰 발급 등은 못 부르고, Gateway 토큰은 이 경로를 못 부름 */
+    /** 팔로우 목록 경로만 catalog, concert 토큰 - 그 토큰으로 토큰 발급 등은 못 부르고, Gateway 토큰은 이 경로를 못 부름 */
     @Test
     void followPathAcceptsOnlyFollowIssuers() throws Exception {
         assertThat(call(token(SECRET, "catalog", "member", 300), "/internal/members/7/follows").getStatus()).isEqualTo(200);

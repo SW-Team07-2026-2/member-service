@@ -15,7 +15,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
-/** 탈퇴의 순서 — DB 삭제(커밋)가 끝난 다음에 Redis 를 지웁니다 (DB 삭제 자체는 UserServiceRegisterTest) */
+/** 탈퇴의 순서 - DB 삭제(커밋)가 끝난 다음에 Redis 를 지웁니다 (DB 삭제 자체는 UserServiceRegisterTest) */
 class WithdrawalServiceTest {
 
     private final UserService userService = mock(UserService.class);
@@ -42,7 +42,7 @@ class WithdrawalServiceTest {
         verifyNoInteractions(refreshTokenStore, badgeCache);
     }
 
-    /** Redis 가 죽어 있어도 탈퇴는 이미 끝났습니다 — 실패로 돌려주지 않습니다 (남은 RT 는 다음 회전 때 거절됩니다) */
+    /** Redis 가 죽어 있어도 탈퇴는 이미 끝났습니다 - 실패로 돌려주지 않습니다 (남은 RT 는 다음 회전 때 거절됩니다) */
     @Test
     void redisFailureDoesNotFailWithdrawal() {
         doThrow(new IllegalStateException("redis down")).when(refreshTokenStore).revokeAll(42);

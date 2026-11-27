@@ -44,8 +44,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 /**
- * Flyway 스키마(약관 · 동의 이력) 위에서 가입 — 회원 · 팔로우 · 동의 이력이 한 번에, 두 번째 가입은 기존 회원으로. Docker 가 없으면 건너뜁니다.
- * 테스트 트랜잭션을 끄고 서비스 호출마다 커밋합니다 — 요청마다 영속성 컨텍스트가 새로 시작되는 운영과 같게
+ * Flyway 스키마(약관, 동의 이력) 위에서 가입 - 회원, 팔로우, 동의 이력이 한 번에, 두 번째 가입은 기존 회원으로. Docker 가 없으면 건너뜁니다.
+ * 테스트 트랜잭션을 끄고 서비스 호출마다 커밋합니다 - 요청마다 영속성 컨텍스트가 새로 시작되는 운영과 같게
  */
 @Testcontainers(disabledWithoutDocker = true)
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=validate")
@@ -81,7 +81,7 @@ class UserServiceRegisterTest {
     @Autowired JdbcTemplate jdbc;
 
 
-    /** ★ 가입 = 회원 + 고른 밴드 팔로우(중복 제거) + 동의 이력 + FOLLOW 이벤트 */
+    /** 가입 = 회원 + 고른 밴드 팔로우(중복 제거) + 동의 이력 + FOLLOW 이벤트 */
     @Test
     void registerCreatesUserFollowsAndAgreements() {
         UserService.LoginResult result = register(UUID.randomUUID().toString(), List.of(3L, 5L, 3L));
@@ -96,7 +96,7 @@ class UserServiceRegisterTest {
                 Long.class, userId)).isEqualTo(2);
     }
 
-    /** 관리자(Studio CS) 검색 — 회원 번호 · 이메일 · 닉네임 일부. % 는 글자 그대로 찾고, 목록의 이메일은 가립니다 */
+    /** 관리자(Studio CS) 검색 - 회원 번호, 이메일, 닉네임 일부. % 는 글자 그대로 찾고, 목록의 이메일은 가립니다 */
     @Test
     void adminSearchFindsByIdEmailOrNicknamePart() {
         String tag = UUID.randomUUID().toString().substring(0, 8);
@@ -114,7 +114,7 @@ class UserServiceRegisterTest {
         assertThat(AdminMemberResponse.detail(service.get(id)).email()).isEqualTo(tag + "@Example.com");
     }
 
-    /** 탭 두 개로 가입 — 두 번째는 먼저 만든 회원으로 로그인하고 팔로우 · 동의 이력을 다시 쓰지 않습니다 */
+    /** 탭 두 개로 가입 - 두 번째는 먼저 만든 회원으로 로그인하고 팔로우, 동의 이력을 다시 쓰지 않습니다 */
     @Test
     void secondRegisterLogsInExistingUser() {
         String uid = UUID.randomUUID().toString();
@@ -138,7 +138,7 @@ class UserServiceRegisterTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE provider_uid = ?", Long.class, uid)).isZero();
     }
 
-    /** ★ 탈퇴 = 회원 행 삭제 — member 의 회원 데이터가 CASCADE 로 모두 지워지고 user.withdrawn 이 outbox 에 남습니다 */
+    /** 탈퇴 = 회원 행 삭제 - member 의 회원 데이터가 CASCADE 로 모두 지워지고 user.withdrawn 이 outbox 에 남습니다 */
     @Test
     void deleteRemovesEveryMemberTableRowAndPublishesWithdrawn() {
         long userId = register(UUID.randomUUID().toString(), List.of(3L)).user().getId();
@@ -161,12 +161,12 @@ class UserServiceRegisterTest {
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM outbox WHERE event_type = 'user.withdrawn' AND (payload->>'userId')::bigint = ? "
                         + "AND payload->>'withdrawnAt' IS NOT NULL", Long.class, userId)).isEqualTo(1);
-        assertCode(() -> service.delete(userId), "NOT_FOUND");   // 이미 탈퇴 — 이벤트도 다시 남기지 않습니다
+        assertCode(() -> service.delete(userId), "NOT_FOUND");   // 이미 탈퇴 - 이벤트도 다시 남기지 않습니다
         assertThat(jdbc.queryForObject("SELECT count(*) FROM outbox WHERE event_type = 'user.withdrawn' "
                 + "AND (payload->>'userId')::bigint = ?", Long.class, userId)).isEqualTo(1);
     }
 
-    /** 탈퇴한 뒤 같은 소셜 계정으로 다시 오면 처음 온 것과 같습니다 — 새 회원 ID 로 가입 */
+    /** 탈퇴한 뒤 같은 소셜 계정으로 다시 오면 처음 온 것과 같습니다 - 새 회원 ID 로 가입 */
     @Test
     void sameProviderAccountCanJoinAgainAsNewUser() {
         String uid = UUID.randomUUID().toString();
@@ -183,7 +183,7 @@ class UserServiceRegisterTest {
         assertThat(service.find(first)).isEmpty();
     }
 
-    /** 회원 벡터 — TEXT 로 저장하고 그대로 돌려줍니다. 프로필(UserEntity)과 섞이지 않습니다 */
+    /** 회원 벡터 - TEXT 로 저장하고 그대로 돌려줍니다. 프로필(UserEntity)과 섞이지 않습니다 */
     @Test
     void embeddingIsStoredAsTextAndReadBack() {
         UserEntity user = register(UUID.randomUUID().toString(), List.of(3L)).user();
@@ -207,7 +207,7 @@ class UserServiceRegisterTest {
     }
 
     private UserService.LoginResult register(String uid, List<Long> artistIds) {
-        // 필수만 동의 — 마케팅(선택)은 안 함 (TermsService.checkSignup 을 거친 모양)
+        // 필수만 동의 - 마케팅(선택)은 안 함 (TermsService.checkSignup 을 거친 모양)
         List<TermsAgreement> agreements = terms.current().stream().map(t -> new TermsAgreement(t.getId(), t.isRequired())).toList();
         return service.register(UserEntity.Provider.KAKAO, uid, null, "새벽", null, artistIds, agreements);
     }

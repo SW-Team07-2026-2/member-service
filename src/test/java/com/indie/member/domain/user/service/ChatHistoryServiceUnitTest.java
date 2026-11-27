@@ -49,7 +49,7 @@ class ChatHistoryServiceUnitTest {
         verifyNoWrites();
     }
 
-    /** 탈퇴한 회원은 행이 없습니다 — 읽기 · 쓰기 모두 404 */
+    /** 탈퇴한 회원은 행이 없습니다 - 읽기, 쓰기 모두 404 */
     @Test
     void missingMemberCannotReadOrWrite() {
         when(repository.userExists(42)).thenReturn(false);

@@ -40,8 +40,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 알림 — Flyway 스키마(user_notification) 위에서 팔로워 복사 · 멱등 · 읽음 · 보관 기간 삭제. Docker 가 없으면 건너뜁니다.
- * HQL insert … select … on conflict 가 실제 PostgreSQL 에서 도는지 여기서 확인합니다.
+ * 알림 - Flyway 스키마(user_notification) 위에서 팔로워 복사, 멱등, 읽음, 보관 기간 삭제. Docker 가 없으면 건너뜁니다.
+ * HQL insert ... select ... on conflict 가 실제 PostgreSQL 에서 도는지 여기서 확인합니다.
  */
 @Testcontainers(disabledWithoutDocker = true)
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=validate")
@@ -71,7 +71,7 @@ class NotificationPersistenceTest {
     @Autowired NotificationService service;
 
     long fan;        // 새소년만 팔로우
-    long bothFan;    // 새소년 · 실리카겔 팔로우
+    long bothFan;    // 새소년, 실리카겔 팔로우
     long stranger;   // 아무도 팔로우하지 않음
 
     @BeforeEach
@@ -85,7 +85,7 @@ class NotificationPersistenceTest {
         when(badgeCache.get(org.mockito.ArgumentMatchers.anyLong())).thenReturn(Optional.empty());
     }
 
-    /** ★ 소식 1건 → 그 아티스트의 팔로워에게만 1행씩 (한 문장 INSERT … SELECT) */
+    /** 소식 1건 -> 그 아티스트의 팔로워에게만 1행씩 (한 문장 INSERT ... SELECT) */
     @Test
     void fanOutCopiesNewsToFollowersOnly() {
         UUID eventId = UUID.randomUUID();
@@ -100,7 +100,7 @@ class NotificationPersistenceTest {
         assertThat(count(stranger)).isZero();
     }
 
-    /** 같은 이벤트가 다시 와도 한 번만 — UNIQUE(user_id, event_id) */
+    /** 같은 이벤트가 다시 와도 한 번만 - UNIQUE(user_id, event_id) */
     @Test
     void fanOutIsIdempotentForRedeliveredEvent() {
         UUID eventId = UUID.randomUUID();
@@ -111,7 +111,7 @@ class NotificationPersistenceTest {
         assertThat(rows(eventId)).hasSize(2);
     }
 
-    /** 페스티벌 — 라인업에서 여러 팀을 팔로우해도 알림은 1건, artist_id 는 라인업 순서가 앞인 팀 */
+    /** 페스티벌 - 라인업에서 여러 팀을 팔로우해도 알림은 1건, artist_id 는 라인업 순서가 앞인 팀 */
     @Test
     void lineupFanOutGivesOneNotificationPerMemberWithEarliestArtist() {
         UUID eventId = UUID.randomUUID();
@@ -122,7 +122,7 @@ class NotificationPersistenceTest {
                 .containsExactlyInAnyOrder(tuple(bothFan, SILICA_GEL), tuple(fan, SE_SO_NEON));
     }
 
-    /** 팔로우하기 전 소식은 받지 않습니다 — 이벤트를 받은 시점의 팔로워만 */
+    /** 팔로우하기 전 소식은 받지 않습니다 - 이벤트를 받은 시점의 팔로워만 */
     @Test
     void laterFollowerDoesNotGetEarlierNews() {
         UUID eventId = UUID.randomUUID();
@@ -134,7 +134,7 @@ class NotificationPersistenceTest {
         assertThat(rows(eventId)).extracting(r -> r.get("user_id")).containsExactly(bothFan);
     }
 
-    /** 개인 알림은 본인에게만 · 재전송에 멱등 · 탈퇴한 회원(행 없음)이면 오류 없이 건너뜁니다 */
+    /** 개인 알림은 본인에게만, 재전송에 멱등, 탈퇴한 회원(행 없음)이면 오류 없이 건너뜁니다 */
     @Test
     void personalNotificationGoesToOwnerOnlyAndSkipsMissingMember() {
         UUID eventId = UUID.randomUUID();
@@ -160,7 +160,7 @@ class NotificationPersistenceTest {
         assertThat(stored).hasSize(200).endsWith("…");
     }
 
-    /** 목록 — 개인 알림과 팔로잉 소식이 한 목록에 최신순 · 커서 · target 은 type 에서 풀어 줍니다 */
+    /** 목록 - 개인 알림과 팔로잉 소식이 한 목록에 최신순, 커서, target 은 type 에서 풀어 줍니다 */
     @Test
     void listMixesPersonalAndNewsNewestFirst() {
         writer.fanOut(UUID.randomUUID(), NotificationType.PHYSICAL_ALBUM_RELEASED, 12, List.of(SE_SO_NEON), "LP 판매 시작");
@@ -182,7 +182,7 @@ class NotificationPersistenceTest {
         assertThat(next.nextCursor()).isNull();
     }
 
-    /** 읽음 — 본인 알림만 · 다시 눌러도 성공 · 남의 알림 · 없는 알림은 404 · 배지는 안 읽은 수 */
+    /** 읽음 - 본인 알림만, 다시 눌러도 성공, 남의 알림, 없는 알림은 404, 배지는 안 읽은 수 */
     @Test
     void markReadTouchesOnlyOwnNotificationAndBadgeCountsUnread() {
         writer.fanOut(UUID.randomUUID(), NotificationType.ALBUM_RELEASED, 1, List.of(SE_SO_NEON), "앨범 1");
@@ -218,7 +218,7 @@ class NotificationPersistenceTest {
         verify(badgeCache).put(fan, 99);
     }
 
-    /** 보관 3개월 — 기준 시각보다 오래된 알림만, 한 번에 limit 건까지 */
+    /** 보관 3개월 - 기준 시각보다 오래된 알림만, 한 번에 limit 건까지 */
     @Test
     void retentionDeletesOnlyOldNotificationsInBatches() {
         OffsetDateTime cutoff = OffsetDateTime.now().minusMonths(3);

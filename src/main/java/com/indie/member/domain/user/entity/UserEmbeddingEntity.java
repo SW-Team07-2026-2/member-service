@@ -18,7 +18,7 @@ public class UserEmbeddingEntity {
     @Id
     private Long id;
 
-    /** pgvector 텍스트 형식 '[0.1,-0.2,...]' - 차원이 정해지면 컬럼을 vector(N) 으로 바꿉니다 */
+    /** 추천 서비스에서 파싱할 숫자 배열 문자열 '[0.1,-0.2,...]'을 TEXT 컬럼에 저장합니다 */
     private String embedding;
 
     private OffsetDateTime embeddingUpdatedAt;

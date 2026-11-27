@@ -168,6 +168,12 @@ public class UserService {
                 Map.of("userId", userId, "withdrawnAt", OffsetDateTime.now(clock).toString()));
     }
 
+    /** 탈퇴 표시 유실에 대비해 현재 회원 행의 존재 여부를 확인합니다. */
+    @Transactional(readOnly = true)
+    public boolean exists(long userId) {
+        return userRepository.existsById(userId);
+    }
+
     /** 기존 사용자 - profileImageUrl, email 만 갱신. email 은 다른 계정이 쓰고 있으면 건드리지 않습니다 */
     private void refreshProviderFields(UserEntity user, String email, String profileImageUrl) {
         if (profileImageUrl != null) {

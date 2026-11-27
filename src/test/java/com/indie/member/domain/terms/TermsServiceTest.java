@@ -183,19 +183,29 @@ class TermsServiceTest {
                 .doesNotContain("Google Analytics 데이터 보관 기간 설정값");
     }
 
-    /** 이용약관 v2 (소개 글의 위키백과 출처 · CC BY-SA 4.0 제8조) 는 7일 공지 뒤 2026-12-02 시행 · 나머지 조항은 v1 그대로 */
+    /**
+     * 이용약관 시행 순서 — v1 (11/05) → v3 (11/27 · 탈퇴할 때 예매 처리 제5조 ③ ④ · 바로 시행) → v4 (12/02 · v2 의 제8조 소개 글의 출처 + 제5조 ③ ④).
+     * v2 는 v4 와 시행 시각이 같고 id 가 작아 시행 중이 되지 않습니다 — 12/02 에 제5조 ③ ④ 가 빠지지 않게
+     */
     @Test
-    void wikipediaSourceClauseTakesEffectOnDecember2() {
+    void tosTimelineKeepsWithdrawalClauseAfterDecember2() {
         List<TermsCode> codes = List.of(TermsCode.TOS);
 
-        assertThat(repository.findCurrent(codes, OffsetDateTime.parse("2026-12-01T23:59:59+09:00")))
+        assertThat(repository.findCurrent(codes, OffsetDateTime.parse("2026-11-26T23:59:59+09:00")))
                 .extracting(TermsEntity::getVersion).containsOnly("v1");
 
-        TermsEntity tos = repository.findCurrent(codes, OffsetDateTime.parse("2026-12-02T00:00:00+09:00")).get(0);
-        assertThat(tos.getVersion()).isEqualTo("v2");
-        assertThat(tos.isRequired()).isTrue();
-        assertThat(tos.getContent()).contains("제7조 (약관의 변경)", "제8조 (소개 글의 출처)", "한국어 위키백과", "CC BY-SA 4.0",
-                "2026년 12월 2일부터").doesNotContain("2026년 11월 5일부터");
+        TermsEntity v3 = repository.findCurrent(codes, OffsetDateTime.parse("2026-11-27T00:00:00+09:00")).get(0);
+        assertThat(v3.getVersion()).isEqualTo("v3");
+        assertThat(v3.isRequired()).isTrue();
+        assertThat(v3.getContent()).contains("제5조 (이용 제한 및 탈퇴)", "③ 탈퇴하면", "24시간 전보다 앞서 탈퇴한 경우", "환불 없이 예매가 만료",
+                "이미 입장한 예매", "④ 결제 대행사", "2026년 11월 27일부터").doesNotContain("제8조 (소개 글의 출처)", "2026년 11월 5일부터");
+        assertThat(repository.findCurrent(codes, OffsetDateTime.parse("2026-12-01T23:59:59+09:00")))
+                .extracting(TermsEntity::getVersion).containsOnly("v3");
+
+        TermsEntity v4 = repository.findCurrent(codes, OffsetDateTime.parse("2026-12-02T00:00:00+09:00")).get(0);
+        assertThat(v4.getVersion()).isEqualTo("v4");
+        assertThat(v4.getContent()).contains("③ 탈퇴하면", "④ 결제 대행사", "제7조 (약관의 변경)", "제8조 (소개 글의 출처)", "한국어 위키백과",
+                "CC BY-SA 4.0", "2026년 12월 2일부터").doesNotContain("2026년 11월 5일부터", "2026년 11월 27일부터");
     }
 
     /** 새 버전이 시행되면 옛 id 는 409 · 시행 전(공지 기간)이면 옛 버전이 그대로 현재 */
